@@ -535,6 +535,15 @@ body.cl-open{overflow:hidden}
 .install-how{background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;line-height:1.6}
 .install-how small{color:var(--muted)}
 .cl-install-help{font-size:13.5px}
+
+/* v4.4 : plusieurs équipes par personne */
+.cl-teams{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.cl-team{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line-2);border-radius:999px;padding:3px 4px 3px 4px;background:var(--bg);font-size:13px}
+.cl-team.lead{border-color:var(--gold,#C9A227)}
+.cl-mem .cl-team select{padding:2px 4px;border-radius:999px;font-size:12px;max-width:none}
+.cl-tx{border:0;background:none;cursor:pointer;color:var(--ink-2);font-size:13px;padding:2px 6px;border-radius:999px}
+.cl-tx:hover{background:var(--line)}
+.cl-mem select.cl-tadd{font-size:12px;color:var(--ink-2)}
 </style>
 </head>
 <body>
@@ -635,7 +644,10 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     init: function () {
       if (!Cloud.configured()) return Promise.resolve(false);
       return loadLib().then(function () {
-        sb = window.supabase.createClient(CFG.url, CFG.key, { auth: { persistSession: true, autoRefreshToken: true, storageKey: 'emp_auth' } });
+        // Chaque édition garde sa propre connexion (les deux sites partagent la même adresse github.io).
+        var AK = 'emp_auth_' + String((window.BRAND && window.BRAND.id) || 'x').toLowerCase();
+        try { if (!localStorage.getItem(AK) && localStorage.getItem('emp_auth')) localStorage.setItem(AK, localStorage.getItem('emp_auth')); } catch (e) { /* bloqué */ }
+        sb = window.supabase.createClient(CFG.url, CFG.key, { auth: { persistSession: true, autoRefreshToken: true, storageKey: AK } });
         sb.auth.onAuthStateChange(function (ev, session) { user = session ? session.user : null; if (authCb) authCb(ev, user); });
         return sb.auth.getSession();
       }).then(function (r) { user = r.data && r.data.session ? r.data.session.user : null; return true; });
@@ -669,12 +681,17 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
       spaceId = id;
       return Promise.all([
         sb.from('spaces').select('id, name, org_name, edition').eq('id', id).single().then(must),
-        sb.from('members').select('role, cat_id, display_name').eq('space_id', id).eq('user_id', user.id).single().then(must)
-      ]).then(function (a) { return { space: a[0], me: a[1] }; });
+        sb.from('members').select('role, cat_id, display_name').eq('space_id', id).eq('user_id', user.id).single().then(must),
+        // v4.4 : toutes les équipes de la personne (null si la base n'est pas encore mise à jour)
+        sb.from('member_teams').select('cat_id, role').eq('space_id', id).eq('user_id', user.id).then(function (r) { return r.error ? null : r.data; }, function () { return null; })
+      ]).then(function (a) { return { space: a[0], me: a[1], teams: a[2] }; });
     },
     updateSpace: function (fields) { return sb.from('spaces').update(fields).eq('id', spaceId).then(must); },
     members: function () { return sb.from('members').select('user_id, role, cat_id, display_name, email, joined_at').eq('space_id', spaceId).order('joined_at').then(must); },
     setMember: function (uid, fields) { return sb.from('members').update(fields).eq('space_id', spaceId).eq('user_id', uid).then(must); },
+    teamMembers: function () { return sb.from('member_teams').select('user_id, cat_id, role').eq('space_id', spaceId).then(must); },
+    setTeam: function (uid, catId, role) { return sb.from('member_teams').upsert({ space_id: spaceId, user_id: uid, cat_id: catId, role: role }, { onConflict: 'space_id,user_id,cat_id' }).then(must); },
+    removeTeam: function (uid, catId) { return sb.from('member_teams').delete().eq('space_id', spaceId).eq('user_id', uid).eq('cat_id', catId).then(must); },
     removeMember: function (uid) { return sb.from('members').delete().eq('space_id', spaceId).eq('user_id', uid).then(must); },
 
     /* ----- Invitations ----- */
@@ -735,13 +752,13 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
   window.Cloud = Cloud;
 })();
 </script>
-<script>/* Event Manager Pro v4.3 — s'installe comme une application, en ligne (comptes, invitations, synchronisation), réunions, équipes habituelles, missions, OK des chefs (avec réserve), budget par équipe, jour J, bilan.
+<script>/* Event Manager Pro v4.4 — plusieurs équipes par personne, s'installe comme une application, en ligne (comptes, invitations, synchronisation), réunions, équipes habituelles, missions, OK des chefs (avec réserve), budget par équipe, jour J, bilan.
    Sans compte, les données restent dans ce navigateur (localStorage) ; avec un compte, elles sont partagées en ligne (Supabase). */
 (function () {
   'use strict';
 
   var B = window.BRAND || {};
-  var APP_VERSION = '4.3';
+  var APP_VERSION = '4.4';
   var KEY = B.storageKey || 'emp_v2';
 
   /* ---------- Outils ---------- */
@@ -1304,8 +1321,15 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
       '<optgroup label="Membre d\'équipe">' + cats.map(function (c) { return '<option value="member:' + c.id + '">Membre — ' + esc(c.name) + '</option>'; }).join('') + '</optgroup>';
     rs.value = isOrg() ? 'org' : state.role.kind + ':' + state.role.catId;
     // En ligne, le rôle vient du compte (donné par l'organisateur) : on ne peut pas le changer ici.
-    if (ON.on) rs.innerHTML = '<option>' + esc(roleName()) + '</option>';
-    rs.disabled = ON.on;
+    // En ligne, le rôle vient du compte (donné par l'organisateur). Une personne dans plusieurs équipes choisit ici l'équipe affichée.
+    var multi = ON.on && !isOrg() && ON.teams.length > 1;
+    if (ON.on && !multi) rs.innerHTML = '<option>' + esc(roleName()) + '</option>';
+    if (multi) {
+      rs.innerHTML = '<optgroup label="Mes équipes">' + ON.teams.map(function (t) { return '<option value="' + t.role + ':' + t.cat_id + '">' + esc(teamLabel(t)) + '</option>'; }).join('') + '</optgroup>';
+      rs.value = state.role.kind + ':' + state.role.catId;
+    }
+    rs.disabled = ON.on && !multi;
+    var rl = $('label[for="role-sel"]'); if (rl) rl.textContent = multi ? 'Mes équipes (' + ON.teams.length + ')' : 'Je suis';
     $('#ev-sel').innerHTML = '<option value="">— Choisir un événement —</option>' + state.events.map(function (e) { return '<option value="' + e.id + '">' + esc(e.name) + '</option>'; }).join('');
     $('#ev-sel').value = ev && ui.evOpen ? ev.id : '';
     var openInc = ev ? ev.incidents.filter(function (i) { return i.status !== 'resolu'; }).length : 0;
@@ -1452,6 +1476,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
   function vTeam(ev) {
     var tid = isOrg() ? ui.teamId : myTeam();
     var t = teamOf(ev, tid);
+    if (!t && !isOrg() && ON.on && !state.role.catId) return vhead('Mon équipe', esc(ev.name)) + '<div class="card new-ev-empty"><h2>Vous n\'êtes dans aucune équipe pour l\'instant</h2><p class="muted">Demandez à l\'organisateur un lien d\'invitation pour votre équipe, ou qu\'il vous ajoute dans « Personnes et invitations ».</p></div>';
     if (!t && !isOrg()) {
       var c = catOf(state.role.catId);
       return vhead('Mon équipe', esc(ev.name)) + '<div class="card new-ev-empty"><h2>Votre équipe ne participe pas à cet événement</h2><p class="muted">L\'équipe « ' + esc(c ? c.name : '') + ' » n\'a pas été choisie pour « ' + esc(ev.name) + ' ». Choisissez un autre événement dans le menu « Événement », ou demandez à l\'organisateur de l\'ajouter.</p></div>';
@@ -1479,7 +1504,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     if (!ms.length) h += empty('Aucune mission pour cette équipe.' + (canEditTeam(tid) ? ' Cliquez sur « + Ajouter une mission ».' : ''));
     else h += ms.slice().sort(function (a, b) { return (a.deadline || '9') < (b.deadline || '9') ? -1 : 1; }).map(function (m) { return missionCard(ev, m, false); }).join('');
     if (ms.length && canEditTeam(tid)) h += '<div style="text-align:center;margin:4px 0 8px">' + btn('+ Ajouter une autre mission', 'new-mission', '', ' data-team="' + tid + '"') + '</div>';
-    h += financeCard(ev, t);
+    if (!isMember()) h += financeCard(ev, t); // un membre ne voit aucun montant
     if (!isOrg()) h += potCard(ev);
     if (lead) h += '<div class="tip mt">Astuce : découpez chaque mission en petites tâches concrètes (« acheter les assiettes », « tester le micro »). L\'organisateur voit le pourcentage avancer à chaque tâche cochée.</div>';
     return h;
@@ -1547,6 +1572,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
   function potCard(ev) {
     // En ligne, un chef ou un membre ne voit pas la liste des dons : seulement le total calculé chez l'organisateur.
     var recs = ev.contributions.filter(function (c) { return c.status === 'recu'; }), hide = ON.on && !recs.length;
+    if (isMember()) return '<div class="card mt pot"><h2>Cagnotte de l\'événement</h2><div class="pot-row"><div class="pot-main"><p class="muted">Chacun peut participer aux frais de l\'événement.</p></div><div class="m-actions">' + btn('💛 Contribuer', 'contribute', 'btn-gold btn-lg') + (ev.paypal ? btn('Partager le lien', 'share-pot', '') : '') + '</div></div></div>';
     var rec = hide ? Number(ev.potTotal) || 0 : sum(recs, 'amount'), nRec = hide ? Number(ev.potCount) || 0 : recs.length, goal = Number(ev.goal) || 0;
     var h = '<div class="card mt pot"><h2>Cagnotte de l\'événement</h2><div class="pot-row"><div class="pot-main"><p><b class="big-num">' + fmtMoney(rec) + '</b> reçus' + (goal ? ' sur un objectif de <b>' + fmtMoney(goal) + '</b>' : '') + '</p>' +
       (goal ? bar(Math.round(rec / goal * 100)) : '') + '<small class="muted">' + nRec + ' contribution(s)</small></div>' +
@@ -2780,29 +2806,33 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
   var rkey = function (r) { return r.kind + '|' + r.id; };
   var sig = function (r) { return stable([r.event_id || null, r.cat_id || null, r.data]); };
   /* Copie des règles du serveur (supabase_setup.sql) : on n'envoie que ce que le rôle a le droit d'écrire. */
+  /* v4.4 : en ligne, une personne peut être chef d'une équipe et membre d'une autre. Les droits suivent son rôle dans chaque équipe. */
+  function teamRole(c) {
+    if (!c) return null;
+    if (ON.on) return ON.tr[c] || null;
+    return c === state.role.catId ? state.role.kind : null;
+  }
+  var anyLead = function () { return ON.on ? Object.keys(ON.tr).some(function (c) { return ON.tr[c] === 'lead'; }) : state.role.kind === 'lead'; };
   function cRead(k, c) {
-    var r = state.role.kind;
-    if (r === 'org') return true;
+    if (state.role.kind === 'org') return true;
     if (['core', 'team', 'cat', 'prog', 'checkin', 'incident', 'meeting', 'rsvp'].indexOf(k) >= 0) return true;
-    if (c && c === state.role.catId) {
-      if (['mission', 'sub', 'file'].indexOf(k) >= 0) return true;
-      if (r === 'lead' && ['tfin', 'mfin', 'expense', 'contrib'].indexOf(k) >= 0) return true;
-    }
-    return false;
+    var r = teamRole(c);
+    if (!r) return false;
+    if (['mission', 'sub', 'file'].indexOf(k) >= 0) return true;
+    return r === 'lead' && ['tfin', 'mfin', 'expense', 'contrib'].indexOf(k) >= 0;
   }
   function cWrite(k, c) {
-    var r = state.role.kind;
-    if (r === 'org') return true;
+    if (state.role.kind === 'org') return true;
     if (['incident', 'rsvp', 'log'].indexOf(k) >= 0) return true;
-    if (r === 'lead' && k === 'meeting') return true;
-    if (!c || c !== state.role.catId) return false;
+    if (k === 'meeting' && anyLead()) return true;
+    var r = teamRole(c);
     if (r === 'lead' && ['team', 'tfin', 'mission', 'mfin', 'sub', 'file', 'expense', 'checkin', 'contrib'].indexOf(k) >= 0) return true;
     return r === 'member' && k === 'sub';
   }
   /* Les dons sont rangés avec l'équipe Finances : son chef (trésorier) peut les noter. */
   function finCat(ev) { var t = ev.teams.filter(function (x) { return /financ|tr[ée]sor/i.test(x.name); })[0]; return t ? t.catId : null; }
 
-  var ON = { on: false, space: null, me: null, synced: {}, orphans: {}, rejected: {}, upQ: [], q: [], status: 'ok', pending: 0, busy: false, again: false, timer: null, subOk: false, mem: null, inv: null, memAt: 0 };
+  var ON = { on: false, space: null, me: null, teams: [], tr: {}, synced: {}, orphans: {}, rejected: {}, upQ: [], q: [], status: 'ok', pending: 0, busy: false, again: false, timer: null, subOk: false, mem: null, inv: null, memAt: 0 };
 
   function decompose(st) {
     var out = {}, org = st.role.kind === 'org';
@@ -2991,11 +3021,33 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
   }
   function applyMe(o) {
     var before = state.role.kind + ':' + state.role.catId;
+    // Les deux éditions sont séparées : un espace de l'autre édition ne s'ouvre jamais ici.
+    if (o.space.edition && o.space.edition !== B.id) throw { code: 'EDITION' };
     ON.space = o.space; ON.me = o.me;
-    state.role = { kind: o.me.role, catId: o.me.role === 'org' ? null : o.me.cat_id || null };
+    // Ancien nom par défaut de l'édition : l'organisateur le remplace tout seul par « Event Manager Pro ».
+    if (B.id === 'ME' && o.me.role === 'org' && /^\s*m[ée]ditons\s+ensemble\s*$/i.test(o.space.name || '')) {
+      Cloud.updateSpace({ name: 'Event Manager Pro' }).then(function () { if (ON.space && ON.space.id === o.space.id) { ON.space.name = 'Event Manager Pro'; saveCache(); setStatus(ON.status); } }, noop);
+    }
+    // Base pas encore mise à jour (v4.3) : une seule équipe, celle du compte.
+    ON.me.teams = o.teams ? o.teams.map(function (t) { return { cat_id: t.cat_id, role: t.role }; }) : (o.me.role !== 'org' && o.me.cat_id ? [{ cat_id: o.me.cat_id, role: o.me.role }] : []);
+    setTeams();
     state.orgName = o.me.display_name || Cloud.displayName();
     if (before !== state.role.kind + ':' + state.role.catId) ui.view = null;
   }
+  /* Choisit l'équipe affichée : celle choisie la dernière fois si elle existe encore, sinon une équipe dont la personne est chef. */
+  function setTeams() {
+    ON.teams = (ON.me && ON.me.teams) || [];
+    ON.teams.sort(function (a, b) { var x = catOf(a.cat_id), y = catOf(b.cat_id); return ((x && x.name) || '').localeCompare((y && y.name) || ''); });
+    ON.tr = {}; ON.teams.forEach(function (t) { ON.tr[t.cat_id] = t.role; });
+    if (ON.me && ON.me.role === 'org') { state.role = { kind: 'org' }; return; }
+    var ok = function (v) { var p = String(v || '').split(':'); return p.length === 2 && !!p[1] && ON.tr[p[1]] === p[0]; };
+    var want = lsGet(KEY + '_team_' + ON.space.id), cur = state.role.kind + ':' + state.role.catId;
+    var v = ok(want) ? want : ok(cur) ? cur : null;
+    if (!v) { var t = ON.teams.filter(function (x) { return x.role === 'lead'; })[0] || ON.teams[0]; v = t ? t.role + ':' + t.cat_id : 'member:'; }
+    var p = v.split(':');
+    state.role = { kind: p[0], catId: p[1] || null };
+  }
+  var teamLabel = function (t) { var c = catOf(t.cat_id); return (t.role === 'lead' ? 'Chef' : 'Membre') + ' — ' + (c ? c.name : 'équipe'); };
   function fullSync() {
     if (!ON.on || ON.loading) return Promise.resolve();
     if (!Cloud.ready() || !Cloud.user()) { setStatus('offline'); return Promise.resolve(); }
@@ -3015,6 +3067,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     }).catch(function (e) {
       ON.loading = false;
       if (Cloud.isNetErr(e)) { setStatus('offline'); return; }
+      if (e && e.code === 'EDITION') { closeSpace(true); clSpaces(); return; }
       if (e && e.code === 'PGRST116') { var nm = ON.space.name; closeSpace(true); clSpaces('Vous n\'avez plus accès à l\'espace « ' + nm + ' ». Demandez un nouveau lien à l\'organisateur.'); return; }
       setStatus('ok'); toast(Cloud.frErr(e));
     });
@@ -3146,11 +3199,20 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     return loadInvite().then(function () {
       if (CL.invite && inviteOk()) {
         return Cloud.acceptInvite(CL.invite, Cloud.displayName()).then(function (sid) {
-          clearInvite(); toast('Bienvenue ! Vous avez rejoint l\'espace.');
+          var inf = CL.info || {}, nm = String(inf.label || '').split(' · ')[0];
+          // L'équipe du lien s'AJOUTE aux autres équipes du compte, et c'est elle qui s'affiche.
+          if (inf.role && inf.role !== 'org' && inf.cat) lsSet(KEY + '_team_' + sid, inf.role + ':' + inf.cat);
+          clearInvite();
+          toast(inf.role === 'org' ? 'Bienvenue ! Vous êtes organisateur de l\'espace.' : nm ? 'Équipe « ' + nm + ' » ajoutée à votre compte : vous y êtes ' + (inf.role === 'lead' ? 'chef.' : 'membre.') : 'Bienvenue ! Vous avez rejoint l\'espace.');
+          tellTabs(sid);
           return openSpace(sid);
         }).catch(function (e) { clearInvite(); clSpaces(Cloud.frErr(e)); });
       }
-      if (CL.invite && CL.info) clearInvite();
+      if (CL.invite && CL.info) {
+        var other = CL.info.valid && CL.info.edition && CL.info.edition !== B.id;
+        clearInvite();
+        if (other) return clSpaces('Ce lien d\'invitation est prévu pour l\'autre édition d\'Event Manager Pro : ouvrez-le tel qu\'il vous a été envoyé.');
+      }
       var last = lsGet(KEY + '_space');
       if (last) return openSpace(last).catch(function () { lsDel(KEY + '_space'); clSpaces(); });
       clSpaces(null, true);
@@ -3180,14 +3242,16 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     Cloud.unsubscribe();
     ON.on = true; ON.space = (cache && cache.space) || { id: id, name: '' }; ON.me = cache && cache.me;
     ON.synced = (cache && cache.synced) || {}; ON.orphans = (cache && cache.orphans) || {}; ON.upQ = (cache && cache.upQ) || [];
-    ON.rejected = {}; ON.q = []; ON.pending = 0; ON.subOk = false; ON.mem = null; ON.inv = null; ON.busy = false; ON.loading = false;
+    ON.rejected = {}; ON.q = []; ON.pending = 0; ON.subOk = false; ON.mem = null; ON.inv = null; ON.mt = null; ON.busy = false; ON.loading = false; ON.teams = []; ON.tr = {};
     state = { v: 2, sv: 3, eventId: src.eventId || null, role: ON.me ? { kind: ON.me.role, catId: ON.me.cat_id || null } : { kind: 'org' }, orgName: ON.me ? ON.me.display_name : Cloud.displayName(), orgPin: '', catalog: src.catalog || [], events: src.events || [] };
+    if (ON.me) { if (!ON.me.teams) ON.me.teams = ON.me.role !== 'org' && ON.me.cat_id ? [{ cat_id: ON.me.cat_id, role: ON.me.role }] : []; setTeams(); }
     if (seed) state.eventId = seed.eventId;
     ui.view = null; ui.evOpen = false; ui.teamId = null;
     var show = function () { clHide(); lsSet(KEY + '_space', id); render(); };
     if (!Cloud.ready()) { if (cache) { show(); setStatus('offline'); return Promise.resolve(); } ON.on = false; state = load(); return Promise.reject(new Error('Failed to fetch')); }
     return Cloud.openSpace(id).then(function (o) {
-      applyMe(o); show(); return fullSync();
+      try { applyMe(o); } catch (e) { ON.on = false; state = load(); lsDel(KEY + '_space'); throw e.code === 'EDITION' ? new Error('Cet espace appartient à l\'autre édition d\'Event Manager Pro.') : e; }
+      show(); return fullSync();
     }, function (e) {
       if (Cloud.isNetErr(e) && cache) { show(); setStatus('offline'); return; }
       ON.on = false; state = load(); throw e;
@@ -3197,7 +3261,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
   function closeSpace(forget) {
     if (ON.on && forget) lsDel(cacheKey());
     Cloud.unsubscribe(); clearTimeout(ON.timer);
-    ON.on = false; ON.space = null; ON.me = null; ON.synced = {}; ON.orphans = {}; ON.q = [];
+    ON.on = false; ON.space = null; ON.me = null; ON.teams = []; ON.tr = {}; ON.synced = {}; ON.orphans = {}; ON.q = [];
     lsDel(KEY + '_space');
     state = load(); ui.view = null; ui.evOpen = false;
   }
@@ -3206,6 +3270,15 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     var go2 = function () { if (Cloud.user()) fullSync(); };
     if (Cloud.ready()) go2(); else Cloud.init().then(go2, noop);
   }
+  /* Plusieurs onglets ou fenêtres ouverts : après un nouveau lien d'invitation, les autres se mettent à jour tout seuls. */
+  var BC = null, waitHere = null;
+  try { BC = new BroadcastChannel('emp-' + KEY); } catch (e) { BC = null; }
+  function tellTabs(sid) { waitHere = sid; if (BC) try { BC.postMessage({ t: 'teams', sid: sid }); } catch (e) { /* rien */ } }
+  if (BC) BC.onmessage = function (e) {
+    var d = e.data || {};
+    if (d.t === 'teams' && ON.on && ON.space && ON.space.id === d.sid) { fullSync(); try { BC.postMessage({ t: 'here', sid: d.sid }); } catch (x) { /* rien */ } }
+    if (d.t === 'here' && waitHere === d.sid) { waitHere = null; setTimeout(function () { toast('L\'application était déjà ouverte ailleurs : elle y est aussi à jour. Vous pouvez fermer l\'autre fenêtre.'); }, 3400); }
+  };
   window.addEventListener('online', reconnect);
   document.addEventListener('visibilitychange', function () { if (!document.hidden && ON.on && Date.now() - (ON.lastSync || 0) > 30000) reconnect(); });
   setInterval(function () { if (ON.on && ON.status === 'offline') reconnect(); }, 30000);
@@ -3216,15 +3289,15 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     var c = catOf(catId);
     var what = role === 'org' ? 'organisateur (tu verras et pourras modifier tout)' : (role === 'lead' ? 'chef de l\'équipe « ' : 'membre de l\'équipe « ') + (c ? c.name : '') + ' »';
     return 'Bonjour' + (label ? ' ' + label : '') + ' ! Je t\'invite dans Event Manager Pro' + (ON.space.name || B.edition ? ' (' + (ON.space.name || B.edition) + ')' : '') + ' comme ' + what + '.\n' +
-      'Ouvre ce lien, crée ton compte avec ton e-mail et un mot de passe, et tu arrives directement au bon endroit :\n' + inviteLink(code);
+      'Ouvre ce lien, crée ton compte avec ton e-mail et un mot de passe (ou connecte-toi si tu as déjà un compte : l\'équipe s\'ajoute aux tiennes), et tu arrives directement au bon endroit :\n' + inviteLink(code);
   }
   function showInvite(code, role, catId, label) {
     var link = inviteLink(code), c = catOf(catId);
     openForm('Lien d\'invitation prêt', [{ type: 'note', k: '_n', html:
-      '<p>Envoyez ce lien à <b>' + esc(label || 'la personne') + '</b>. Elle crée son compte et arrive directement comme <b>' + esc(role === 'org' ? 'organisateur' : (role === 'lead' ? 'chef de « ' : 'membre de « ') + (c ? c.name : '') + (role === 'org' ? '' : ' »')) + '</b>.</p>' +
+      '<p>Envoyez ce lien à <b>' + esc(label || 'la personne') + '</b>. Elle crée son compte (ou se connecte, si elle en a déjà un) et arrive directement comme <b>' + esc(role === 'org' ? 'organisateur' : (role === 'lead' ? 'chef de « ' : 'membre de « ') + (c ? c.name : '') + (role === 'org' ? '' : ' »')) + '</b>.</p>' +
       '<input class="cl-link" readonly value="' + esc(link) + '" onfocus="this.select()">' +
       '<div class="m-actions">' + btn('Envoyer par WhatsApp', 'cl-wa', 'btn-gold', ' data-t="' + esc(inviteText(code, role, catId, label)) + '"') + btn('Copier le lien', 'cl-copy', '', ' data-l="' + esc(link) + '"') + '</div>' +
-      '<p class="small muted mt">Le lien reste valable 60 jours. Pour une équipe entière, le même lien de membre peut être partagé dans le groupe WhatsApp de l\'équipe.</p>' }], {}, function () {}, { saveLabel: 'Fermer' });
+      '<p class="small muted mt">Si la personne est déjà dans une autre équipe, cette équipe s\'ajoute simplement à son compte : une seule application, avec toutes ses équipes. Le lien reste valable 60 jours. Pour une équipe entière, le même lien de membre peut être partagé dans le groupe WhatsApp de l\'équipe.</p>' }], {}, function () {}, { saveLabel: 'Fermer' });
   }
   function formInvite(catId, role, label) {
     var cats = catList();
@@ -3245,21 +3318,34 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
   function loadPeople(force) {
     if (!ON.on || !isOrg() || (!force && Date.now() - ON.memAt < 5000)) return;
     ON.memAt = Date.now();
-    Promise.all([Cloud.members(), Cloud.invites()]).then(function (a) {
-      ON.mem = a[0]; ON.inv = a[1];
+    Promise.all([Cloud.members(), Cloud.invites(), Cloud.teamMembers().catch(function () { return null; })]).then(function (a) {
+      ON.mem = a[0]; ON.inv = a[1]; ON.mt = a[2];
       var el = $('#cl-people'); if (el) el.innerHTML = peopleHtml();
     }).catch(function (e) { var el = $('#cl-people'); if (el) el.innerHTML = '<p class="cl-err">' + esc(Cloud.frErr(e)) + '</p>'; });
   }
   function peopleHtml() {
     if (!ON.mem) return '<p class="muted small">Chargement…</p>';
     var me = Cloud.user() ? Cloud.user().id : '';
-    var roleOpts = function (sel) { return [['org', 'Organisateur'], ['lead', 'Chef d\'équipe'], ['member', 'Membre']].map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === sel ? ' selected' : '') + '>' + o[1] + '</option>'; }).join(''); };
-    var catOpts = function (sel) { return '<option value="">— équipe —</option>' + state.catalog.map(function (c) { return '<option value="' + c.id + '"' + (c.id === sel ? ' selected' : '') + '>' + esc(c.name) + '</option>'; }).join(''); };
-    var h = '<div class="tbl-wrap"><table class="tbl cl-mem"><thead><tr><th>Personne</th><th>Rôle</th><th>Équipe</th><th></th></tr></thead><tbody>' + ON.mem.map(function (m) {
+    var ro = !ON.mt; // base pas encore mise à jour : lecture seule
+    var orgOpts = function (m) { return '<option value="org"' + (m.role === 'org' ? ' selected' : '') + '>Organisateur</option><option value="team"' + (m.role === 'org' ? '' : ' selected') + '>Chef / membre</option>'; };
+    var teamsCell = function (m) {
+      if (m.role === 'org') return '<small class="muted">toutes (organisateur)</small>';
+      var ts = memberTeams(m), nm = esc(m.display_name || m.email || '');
+      var h2 = ts.map(function (t) {
+        var c = catOf(t.cat_id), cn = esc(c ? c.name : 'équipe supprimée');
+        return '<span class="cl-team' + (t.role === 'lead' ? ' lead' : '') + '"><select data-chg="cl-trole" data-u="' + m.user_id + '" data-c="' + esc(t.cat_id) + '"' + (ro ? ' disabled' : '') + ' aria-label="Rôle dans ' + cn + '"><option value="lead"' + (t.role === 'lead' ? ' selected' : '') + '>Chef</option><option value="member"' + (t.role === 'member' ? ' selected' : '') + '>Membre</option></select>' +
+          '<b>' + cn + '</b>' + (ro ? '' : '<button class="cl-tx" data-act="cl-tdel" data-u="' + m.user_id + '" data-c="' + esc(t.cat_id) + '" data-n="' + nm + '" data-cn="' + cn + '" title="Retirer de cette équipe" aria-label="Retirer de ' + cn + '">✕</button>') + '</span>';
+      }).join('') || '<small class="muted">aucune équipe</small>';
+      var free = state.catalog.filter(function (c) { return !c.hidden && !ts.some(function (t) { return t.cat_id === c.id; }); });
+      if (!ro && free.length) h2 += '<select class="cl-tadd" data-chg="cl-tadd" data-u="' + m.user_id + '" aria-label="Ajouter une équipe"><option value="">+ Ajouter une équipe…</option>' + free.map(function (c) { return '<option value="' + c.id + '">' + esc(c.name) + '</option>'; }).join('') + '</select>';
+      return '<div class="cl-teams">' + h2 + '</div>';
+    };
+    var h = (ro ? '<p class="cl-err">La base de données n\'est pas encore à jour : exécutez le script SQL v4.4 dans Supabase pour pouvoir donner plusieurs équipes à une personne.</p>' : '') +
+      '<div class="tbl-wrap"><table class="tbl cl-mem"><thead><tr><th>Personne</th><th>Rôle</th><th>Équipes (rôle dans chacune)</th><th></th></tr></thead><tbody>' + ON.mem.map(function (m) {
       var self = m.user_id === me;
       return '<tr><td><b>' + esc(m.display_name || '—') + '</b><br><small class="muted">' + esc(m.email || '') + '</small></td>' +
-        '<td><select data-chg="cl-mrole" data-u="' + m.user_id + '"' + (self ? ' disabled' : '') + ' aria-label="Rôle">' + roleOpts(m.role) + '</select></td>' +
-        '<td>' + (m.role === 'org' ? '<small class="muted">toutes</small>' : '<select data-chg="cl-mcat" data-u="' + m.user_id + '" aria-label="Équipe">' + catOpts(m.cat_id) + '</select>') + '</td>' +
+        '<td><select data-chg="cl-morg" data-u="' + m.user_id + '"' + (self || ro ? ' disabled' : '') + ' aria-label="Rôle">' + orgOpts(m) + '</select></td>' +
+        '<td>' + teamsCell(m) + '</td>' +
         '<td>' + (self ? '<small class="muted">vous</small>' : btn('Retirer', 'cl-mdel', 'btn-ghost btn-sm', ' data-u="' + m.user_id + '" data-n="' + esc(m.display_name || m.email || '') + '"')) + '</td></tr>';
     }).join('') + '</tbody></table></div>';
     var inv = (ON.inv || []).filter(function (i) { return !i.expires_at || i.expires_at > new Date().toISOString(); });
@@ -3268,6 +3354,24 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
         btn('Partager', 'cl-ishare', 'btn-sm', ' data-c="' + i.code + '" data-r="' + i.role + '" data-cat="' + (i.cat_id || '') + '" data-lb="' + esc(i.label || '') + '"') + btn('Supprimer', 'cl-idel', 'btn-ghost btn-sm', ' data-c="' + i.code + '"') + '</div></div>';
     }).join('');
     return h;
+  }
+  function memberTeams(m) {
+    if (!ON.mt) return m.role !== 'org' && m.cat_id ? [{ cat_id: m.cat_id, role: m.role }] : [];
+    return ON.mt.filter(function (t) { return t.user_id === m.user_id; }).sort(function (a, b) { var x = catOf(a.cat_id), y = catOf(b.cat_id); return ((x && x.name) || '').localeCompare((y && y.name) || ''); });
+  }
+  /* Garde la ligne « membre » cohérente avec ses équipes (rôle principal et première équipe). */
+  function syncMember(u) {
+    return Cloud.teamMembers().then(function (rows) {
+      ON.mt = rows;
+      var m = (ON.mem || []).filter(function (x) { return x.user_id === u; })[0];
+      if (!m || m.role === 'org') return;
+      var ts = rows.filter(function (t) { return t.user_id === u; });
+      var f = { role: ts.some(function (t) { return t.role === 'lead'; }) ? 'lead' : 'member', cat_id: ts.some(function (t) { return t.cat_id === m.cat_id; }) ? m.cat_id : (ts[0] ? ts[0].cat_id : null) };
+      if (f.role !== m.role || f.cat_id !== m.cat_id) return Cloud.setMember(u, f);
+    });
+  }
+  function teamChange(p, msg) {
+    p.then(function () { loadPeople(true); if (msg) toast(msg); }, function (e) { toast(Cloud.frErr(e)); loadPeople(true); });
   }
   function cloudCards() {
     var u = Cloud.user() || {};
@@ -3281,7 +3385,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
   function peopleCard() {
     setTimeout(function () { loadPeople(false); }, 0);
     return '<div class="card mt"><div class="sec-head"><h2>Personnes et invitations</h2>' + btn('+ Inviter quelqu\'un', 'cl-invite', 'btn-gold') + '</div>' +
-      '<p class="small muted">Chacun se connecte avec son propre compte. Le lien d\'invitation donne le bon rôle : organisateur, chef d\'une équipe ou membre d\'une équipe. Vous pouvez changer le rôle ou l\'équipe de quelqu\'un ici à tout moment.</p><div id="cl-people">' + peopleHtml() + '</div></div>';
+      '<p class="small muted">Chacun se connecte avec son propre compte. Le lien d\'invitation donne le bon rôle : organisateur, chef d\'une équipe ou membre d\'une équipe. Une même personne peut être dans plusieurs équipes : chaque nouveau lien ajoute une équipe à son compte. Ici, vous pouvez à tout moment ajouter ou retirer une équipe, et choisir « Chef » ou « Membre » dans chacune.</p><div id="cl-people">' + peopleHtml() + '</div></div>';
   }
 
   Object.assign(ACT, {
@@ -3305,6 +3409,11 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     'cl-invite': function (el) { formInvite(el.getAttribute('data-cat'), el.getAttribute('data-role'), el.getAttribute('data-lead')); },
     'cl-ishare': function (el) { showInvite(el.getAttribute('data-c'), el.getAttribute('data-r'), el.getAttribute('data-cat'), el.getAttribute('data-lb')); },
     'cl-idel': function (el) { if (!confirm('Supprimer ce lien ? Les personnes déjà inscrites gardent leur accès.')) return; Cloud.deleteInvite(el.getAttribute('data-c')).then(function () { loadPeople(true); }, function (e) { toast(Cloud.frErr(e)); }); },
+    'cl-tdel': function (el) {
+      var u = el.getAttribute('data-u');
+      if (!confirm('Retirer ' + el.getAttribute('data-n') + ' de l\'équipe « ' + el.getAttribute('data-cn') + ' » ? Ses autres équipes restent.')) return;
+      teamChange(Cloud.removeTeam(u, el.getAttribute('data-c')).then(function () { return syncMember(u); }), 'Retiré(e) de l\'équipe.');
+    },
     'cl-mdel': function (el) {
       if (!confirm('Retirer ' + el.getAttribute('data-n') + ' de l\'espace ? Cette personne ne verra plus rien.')) return;
       Cloud.removeMember(el.getAttribute('data-u')).then(function () { loadPeople(true); toast('Personne retirée.'); }, function (e) { toast(Cloud.frErr(e)); });
@@ -3321,15 +3430,21 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
       Cloud.updateSpace({ name: n }).then(function () { ON.space.name = n; saveCache(); setStatus(ON.status); toast('Nom de l\'espace changé.'); }, function (e) { toast(Cloud.frErr(e)); });
       return 'norender';
     },
-    'cl-mrole': function (el) {
-      var u = el.getAttribute('data-u'), r = el.value, m = (ON.mem || []).filter(function (x) { return x.user_id === u; })[0];
-      Cloud.setMember(u, { role: r, cat_id: r === 'org' ? null : (m && m.cat_id) || null }).then(function () {
-        loadPeople(true); toast(r !== 'org' && !(m && m.cat_id) ? 'Choisissez maintenant son équipe.' : 'Rôle changé.');
-      }, function (e) { toast(Cloud.frErr(e)); loadPeople(true); });
+    'cl-morg': function (el) {
+      var u = el.getAttribute('data-u'), m = (ON.mem || []).filter(function (x) { return x.user_id === u; })[0], ts = m ? memberTeams(m) : [];
+      if (el.value === 'org') teamChange(Cloud.setMember(u, { role: 'org' }), 'Cette personne est maintenant organisateur : elle voit et modifie tout.');
+      else teamChange(Cloud.setMember(u, { role: ts.some(function (t) { return t.role === 'lead'; }) ? 'lead' : 'member', cat_id: ts[0] ? ts[0].cat_id : null }), ts.length ? 'Cette personne n\'est plus organisateur : elle garde ses équipes.' : 'Ajoutez-lui maintenant une équipe.');
       return 'norender';
     },
-    'cl-mcat': function (el) {
-      Cloud.setMember(el.getAttribute('data-u'), { cat_id: el.value || null }).then(function () { loadPeople(true); toast('Équipe changée.'); }, function (e) { toast(Cloud.frErr(e)); loadPeople(true); });
+    'cl-trole': function (el) {
+      var u = el.getAttribute('data-u'), c = el.getAttribute('data-c'), r = el.value, cat = catOf(c);
+      teamChange(Cloud.setTeam(u, c, r).then(function () { return syncMember(u); }), (r === 'lead' ? 'Chef' : 'Membre') + ' de « ' + (cat ? cat.name : '') + ' ».');
+      return 'norender';
+    },
+    'cl-tadd': function (el) {
+      var u = el.getAttribute('data-u'), c = el.value, cat = catOf(c);
+      if (!c) return 'norender';
+      teamChange(Cloud.setTeam(u, c, 'member').then(function () { return syncMember(u); }), 'Équipe « ' + (cat ? cat.name : '') + ' » ajoutée comme membre. Choisissez « Chef » si besoin.');
       return 'norender';
     }
   });
@@ -3489,10 +3604,13 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
   });
   function setRole(v) {
     var p = v.split(':');
+    if (ON.on && (v === 'org' || ON.tr[p[1]] !== p[0])) return render();
     state.role = v === 'org' ? { kind: 'org' } : { kind: p[0], catId: p[1] };
     ui.view = v === 'org' ? (ui.evOpen ? 'dash' : 'home') : 'myteam'; if (v !== 'org') ui.evOpen = true;
+    if (ON.on) lsSet(KEY + '_team_' + ON.space.id, v);
     save(); closeSide(); render(); window.scrollTo(0, 0);
     var c = v === 'org' ? null : catOf(p[1]), t = c && teamByCat(curEv(), c.id);
+    if (ON.on) return toast('Équipe « ' + (c ? c.name : '') + ' » : vous y êtes ' + (p[0] === 'lead' ? 'chef (budget, dépenses, missions).' : 'membre (vos tâches, sans les montants).'));
     toast(!c ? 'Vous êtes l\'organisateur général.' : p[0] === 'lead' ? 'Vous voyez l\'application comme ' + ((t || c).lead || 'le chef') + ', chef de « ' + c.name + ' ».' : 'Vous voyez l\'application comme un membre de « ' + c.name + ' ».');
   }
   $('#role-sel').addEventListener('change', function (e) {

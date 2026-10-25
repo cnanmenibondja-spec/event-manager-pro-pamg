@@ -7,6 +7,8 @@
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
+  "launch_handler": {"client_mode": ["navigate-existing", "auto"]},
+  "handle_links": "preferred",
   "background_color": "#0A1230",
   "theme_color": "#0A1230",
   "categories": ["productivity", "business"],
