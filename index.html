@@ -544,6 +544,10 @@ body.cl-open{overflow:hidden}
 .cl-tx{border:0;background:none;cursor:pointer;color:var(--ink-2);font-size:13px;padding:2px 6px;border-radius:999px}
 .cl-tx:hover{background:var(--line)}
 .cl-mem select.cl-tadd{font-size:12px;color:var(--ink-2)}
+/* v4.5 : application déjà installée */
+.side-install.is-done{background:transparent;color:var(--gold-light);border:1px solid rgba(232,181,44,.45);font-weight:600}
+.side-install.is-done:hover{background:rgba(232,181,44,.12)}
+.cl-installed{text-align:center;font-size:13px;color:var(--ok,#1f8a4c);margin-top:12px}
 </style>
 </head>
 <body>
@@ -752,13 +756,13 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
   window.Cloud = Cloud;
 })();
 </script>
-<script>/* Event Manager Pro v4.4 — plusieurs équipes par personne, s'installe comme une application, en ligne (comptes, invitations, synchronisation), réunions, équipes habituelles, missions, OK des chefs (avec réserve), budget par équipe, jour J, bilan.
+<script>/* Event Manager Pro v4.5 — bouton Installer sur tous les écrans, plusieurs équipes par personne, s'installe comme une application, en ligne (comptes, invitations, synchronisation), réunions, équipes habituelles, missions, OK des chefs (avec réserve), budget par équipe, jour J, bilan.
    Sans compte, les données restent dans ce navigateur (localStorage) ; avec un compte, elles sont partagées en ligne (Supabase). */
 (function () {
   'use strict';
 
   var B = window.BRAND || {};
-  var APP_VERSION = '4.4';
+  var APP_VERSION = '4.5';
   var KEY = B.storageKey || 'emp_v2';
 
   /* ---------- Outils ---------- */
@@ -3120,7 +3124,9 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
   function clShow(html) {
     if (!CL.el) { CL.el = document.createElement('div'); CL.el.id = 'cloud'; CL.el.className = 'cloud'; document.body.appendChild(CL.el); }
     var logo = $('.brand-logo');
-    CL.el.innerHTML = '<div class="cl-box"><div class="cl-brand"><img src="' + (logo ? logo.src : '') + '" alt=""><div><b>Event Manager <span>Pro</span></b>' + (B.edition ? '<small>' + esc(B.edition) + '</small>' : '') + '</div></div>' + html + '</div>';
+    CL.el.innerHTML = '<div class="cl-box"><div class="cl-brand"><img src="' + (logo ? logo.src : '') + '" alt=""><div><b>Event Manager <span>Pro</span></b>' + (B.edition ? '<small>' + esc(B.edition) + '</small>' : '') + '</div></div>' + html +
+      (canInstall() ? '<button type="button" class="btn cl-install" id="cl-install" data-act="install">📲 Installer l\'application sur cet appareil</button><div class="cl-inv cl-install-help" id="cl-install-help" hidden>' + installHelp() + '</div>'
+        : isStandalone() ? '<p class="cl-installed">✓ Application installée sur cet appareil</p>' : '') + '</div>';
     CL.el.hidden = false; document.body.classList.add('cl-open'); closeModal();
   }
   function clHide() { if (CL.el) CL.el.hidden = true; document.body.classList.remove('cl-open'); }
@@ -3150,9 +3156,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
       '<p class="cl-err" id="cl-err">' + esc(msg || '') + '</p>' +
       '<button class="btn btn-primary btn-lg" type="submit">' + (su ? 'Créer mon compte' : 'Me connecter') + '</button></form>' +
       (su ? '' : '<button type="button" class="link-btn cl-forgot" data-act="cl-forgot">Mot de passe oublié ?</button>') +
-      '<div class="cl-sep"></div><button type="button" class="btn btn-ghost cl-local" data-act="cl-local">Continuer sans compte (données sur cet appareil)</button>' +
-      '<button type="button" class="btn cl-install" id="cl-install" data-act="install"' + (canInstall() ? '' : ' hidden') + '>📲 Installer l\'application sur cet appareil</button>' +
-      '<div class="cl-inv cl-install-help" id="cl-install-help" hidden>' + installHelp() + '</div>');
+      '<div class="cl-sep"></div><button type="button" class="btn btn-ghost cl-local" data-act="cl-local">Continuer sans compte (données sur cet appareil)</button>');
   }
   function clNewPw() {
     clShow('<h2 class="cl-h">Nouveau mot de passe</h2><form id="cl-form" class="cl-form" data-f="newpw" novalidate><label>Nouveau mot de passe <small>(au moins 6 caractères)</small><input name="pw" type="password" autocomplete="new-password"></label><p class="cl-err" id="cl-err"></p><button class="btn btn-primary btn-lg" type="submit">Enregistrer</button></form>');
@@ -3481,11 +3485,15 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     else h += '<p class="install-how">' + installHelp() + '</p>';
     return h + '</div></div>';
   }
+  /* Le bouton reste toujours visible dans le menu : « Installer » dans le navigateur, « ✓ Application installée » dans l'application installée. */
   function paintInstall() {
-    var show = canInstall();
-    ['#side-install', '#top-install'].forEach(function (s) { var b = $(s); if (b) b.hidden = !show; });
+    var show = canInstall(), inst = isStandalone();
+    var sb = $('#side-install');
+    if (sb) { sb.hidden = !show && !inst; sb.classList.toggle('is-done', inst); sb.textContent = inst ? '✓ Application installée' : '📲 Installer l\'application'; }
+    var tb = $('#top-install'); if (tb) tb.hidden = !show;
   }
   ACT.install = function () {
+    if (isStandalone()) { toast('Event Manager Pro est déjà installée : vous l\'utilisez en ce moment comme une application.'); return; }
     if (!deferredInstall) {
       var box = $('#cl-install-help');
       if (CL.el && !CL.el.hidden && box) { box.hidden = !box.hidden; return; }
