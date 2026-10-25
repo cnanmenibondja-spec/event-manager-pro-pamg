@@ -1,6 +1,6 @@
 /* Event Manager Pro — service worker : l'application s'installe et s'ouvre même sans réseau.
    Les données en ligne (Supabase) ne passent JAMAIS par le cache : elles vont toujours directement au serveur. */
-const VERSION = '4.2';
+const VERSION = '4.3';
 const PREFIX = 'emp-pamg-';
 const CACHE = PREFIX + VERSION;
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-maskable-512.png', './icons/apple-touch-icon.png'];
