@@ -1,0 +1,18 @@
+{
+  "name": "Event Manager Pro · Pray and Move",
+  "short_name": "Event PAMG",
+  "description": "Organiser un événement avec les équipes et leurs chefs : missions, tâches, réunions, budget, jour J.",
+  "lang": "fr",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0A1230",
+  "theme_color": "#0A1230",
+  "categories": ["productivity", "business"],
+  "icons": [
+    {"src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+    {"src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+    {"src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ]
+}
