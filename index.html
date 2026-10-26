@@ -618,6 +618,10 @@ body.cl-open .modal{z-index:250}
   .toast{bottom:calc(84px + env(safe-area-inset-bottom))}
 }
 @media print{.tabbar,.more-btn{display:none!important}.fold .more{display:revert!important}}
+
+/* v5.4 : numéro de version bien visible (menu et écran de connexion) */
+.ver-chip{font-style:normal;display:inline-block;align-self:flex-start;margin-top:6px;font-size:11px;font-weight:700;letter-spacing:.03em;color:var(--navy);background:var(--gold);border-radius:999px;padding:2px 9px;line-height:1.4}
+.cl-brand .ver-chip{display:table;margin-top:5px}
 </style>
 </head>
 <body>
@@ -628,6 +632,7 @@ body.cl-open .modal{z-index:250}
       <div class="brand-txt">
         <b>Event Manager</b><span>P R O</span>
         <small id="brand-edition"></small>
+        <em class="ver-chip" id="brand-ver"></em>
       </div>
     </div>
     <div class="side-pick">
@@ -865,7 +870,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
   'use strict';
 
   var B = window.BRAND || {};
-  var APP_VERSION = '5.3';
+  var APP_VERSION = '5.4';
   var KEY = B.storageKey || 'emp_v2';
 
   /* ---------- Outils ---------- */
@@ -1441,6 +1446,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
   }
   function renderChrome(ev) {
     $('#brand-edition').textContent = B.edition || '';
+    $('#brand-ver').textContent = 'Version ' + APP_VERSION;
     var rs = $('#role-sel');
     // Les rôles suivent les équipes habituelles : un chef garde son rôle d'un événement à l'autre.
     var cats = state.catalog.slice();
@@ -3267,7 +3273,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
   function clShow(html) {
     if (!CL.el) { CL.el = document.createElement('div'); CL.el.id = 'cloud'; CL.el.className = 'cloud'; document.body.appendChild(CL.el); }
     var logo = $('.brand-logo');
-    CL.el.innerHTML = '<div class="cl-box"><div class="cl-brand"><img src="' + (logo ? logo.src : '') + '" alt=""><div><b>Event Manager <span>Pro</span></b>' + (B.edition ? '<small>' + esc(B.edition) + '</small>' : '') + '</div></div>' + html +
+    CL.el.innerHTML = '<div class="cl-box"><div class="cl-brand"><img src="' + (logo ? logo.src : '') + '" alt=""><div><b>Event Manager <span>Pro</span></b>' + (B.edition ? '<small>' + esc(B.edition) + '</small>' : '') + '<em class="ver-chip">Version ' + APP_VERSION + '</em></div></div>' + html +
       (canInstall() ? '<button type="button" class="btn cl-install" id="cl-install" data-act="install">📲 Installer l\'application sur cet appareil</button><div class="cl-inv cl-install-help" id="cl-install-help" hidden>' + installHelp() + '</div>'
         : isStandalone() ? '<p class="cl-installed">✓ Application installée sur cet appareil</p>' : '') + '</div>';
     CL.el.hidden = false; document.body.classList.add('cl-open'); closeModal();
