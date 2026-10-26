@@ -548,6 +548,38 @@ body.cl-open{overflow:hidden}
 .side-install.is-done{background:transparent;color:var(--gold-light);border:1px solid rgba(232,181,44,.45);font-weight:600}
 .side-install.is-done:hover{background:rgba(232,181,44,.12)}
 .cl-installed{text-align:center;font-size:13px;color:var(--ok,#1f8a4c);margin-top:12px}
+/* v5.0 : mes événements, répartition des rôles, prévenir l'équipe */
+body.cl-open .modal{z-index:250}
+.toast{z-index:300}
+.cl-newev{width:100%;justify-content:center;margin-top:10px}
+.cl-import{width:100%;justify-content:center;margin-top:8px}
+.ev-cards{display:flex;flex-direction:column;gap:8px}
+.ev-card{display:flex;align-items:center;gap:12px;text-align:left}
+.ev-card.past{opacity:.7}
+.ev-card .evdate{min-width:44px}
+.ev-main{flex:1;min-width:0;display:flex;flex-direction:column}
+.ev-main small{white-space:normal}
+.ev-cnt{color:var(--ink-2);font-size:12px;margin-top:2px}
+.ev-inv{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;border-left:4px solid var(--gold);margin-bottom:10px}
+.ev-inv p{margin:4px 0 0}
+.ev-inv.in-ev{margin-bottom:16px}
+.ev-inv.no{border-left-color:var(--bad,#C93C3C)}
+.ev-news{margin-bottom:10px;border-left:4px solid var(--ok,#1f8a4c)}
+.ev-news p{margin:4px 0}
+.ev-phone{margin-bottom:10px}
+.ev-phone-row{display:flex;gap:8px;margin-top:8px}
+.ev-phone-row input{flex:1;min-width:0;border:1px solid var(--line-2);border-radius:8px;padding:8px 10px}
+.ev-list .ev-card,.ev-list .card{color:var(--ink)}
+.roles-pub{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;border-left:4px solid var(--gold)}
+.roles-pub.ok{border-left-color:var(--ok,#1f8a4c);display:block}
+.roles-pub p{margin:4px 0 0}
+.roles-team{border-top:4px solid var(--line)}
+.roles-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 0;border-top:1px solid var(--line)}
+.roles-row b{flex:1;min-width:120px}
+.roles-row select,.roles-add{border:1px solid var(--line-2);border-radius:8px;padding:5px 8px;background:#fff}
+.roles-add{margin-top:10px;width:100%}
+.notify-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)}
+.notify-grp{width:100%;border:1px solid var(--line-2);border-radius:8px;padding:10px;font:inherit;font-size:13px}
 </style>
 </head>
 <body>
@@ -632,6 +664,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     if (/Email not confirmed/i.test(m)) return 'L\'e-mail n\'est pas encore confirmé (réglage Supabase « Confirm email » à désactiver).';
     if (/invalid format|valid email|Unable to validate email/i.test(m)) return 'Cette adresse e-mail n\'est pas valide.';
     if (/Failed to fetch|NetworkError|network/i.test(m)) return 'Pas de connexion internet.';
+    if (/does not exist|schema cache|Could not find the (table|function|column)/i.test(m)) return 'La base de données n\'est pas encore à jour : lancez une fois le script SQL v5.0 dans Supabase (SQL Editor), puis rechargez la page.';
     if (/rate limit/i.test(m)) return 'Trop d\'essais : attendez quelques minutes.';
     return m || 'Erreur inconnue';
   }
@@ -658,8 +691,8 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     },
 
     /* ----- Comptes ----- */
-    signUp: function (email, pw, name) {
-      return sb.auth.signUp({ email: email, password: pw, options: { data: { name: name || '' } } }).then(function (r) {
+    signUp: function (email, pw, name, phone) {
+      return sb.auth.signUp({ email: email, password: pw, options: { data: { name: name || '', phone: phone || '' } } }).then(function (r) {
         if (r.error) throw r.error;
         if (!r.data.session) throw new Error('Email not confirmed');
         user = r.data.user; return user;
@@ -671,30 +704,61 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     setPassword: function (pw) { return sb.auth.updateUser({ password: pw }).then(must); },
     displayName: function () { return user ? ((user.user_metadata && user.user_metadata.name) || user.email.split('@')[0]) : ''; },
 
+    /* ----- Annuaire (v5.0) : nom et WhatsApp de chaque inscrit de l'édition ----- */
+    myProfile: function (edition) { return sb.from('profiles').select('user_id, name, phone').eq('user_id', user.id).eq('edition', edition).then(must).then(function (r) { return r[0] || null; }); },
+    saveProfile: function (edition, name, phone) { return sb.from('profiles').upsert({ user_id: user.id, edition: edition, name: name || '', phone: phone || '' }, { onConflict: 'user_id,edition' }).then(must); },
+    directory: function (edition) { return sb.from('profiles').select('user_id, name, phone').eq('edition', edition).then(must); },
+
+    /* ----- Événements (v5.0 : un événement = un espace) ----- */
+    myEvents: function (edition) {
+      return Promise.all([
+        sb.from('members').select('role, status, answer, answered_at, space_id, spaces(id, name, edition, event_date, archived, kind, created_by)').eq('user_id', user.id).then(must),
+        sb.from('member_teams').select('space_id, cat_id, role, cat_name').eq('user_id', user.id).then(function (r) { return r.error ? [] : r.data; }, function () { return []; })
+      ]).then(function (a) {
+        return a[0].filter(function (r) { return r.spaces && r.spaces.edition === edition && !r.spaces.archived && r.status !== 'draft'; }).map(function (r) {
+          return { id: r.space_id, name: r.spaces.name, date: r.spaces.event_date || '', kind: r.spaces.kind, createdBy: r.spaces.created_by, role: r.role, answer: r.answer, answeredAt: r.answered_at,
+            teams: a[1].filter(function (t) { return t.space_id === r.space_id; }).map(function (t) { return { cat_id: t.cat_id, role: t.role, cat_name: t.cat_name || '' }; }) };
+        });
+      });
+    },
+    answers: function (ids) { return ids.length ? sb.from('members').select('space_id, user_id, display_name, status, answer, answered_at').in('space_id', ids).then(must) : Promise.resolve([]); },
+    answer: function (sid, a) { return sb.rpc('emp_answer', { p_space: sid, p_answer: a }).then(must); },
+    publish: function () { return sb.rpc('emp_publish', { p_space: spaceId }).then(must); },
+    useSpace: function (id) { spaceId = id; },
+    deleteSpace: function () { return sb.from('spaces').delete().eq('id', spaceId).then(must); },
+    loadCats: function (sid) { return sb.from('items').select('id, data').eq('space_id', sid).eq('kind', 'cat').then(must); },
+    peopleOf: function (sid) {
+      return Promise.all([
+        sb.from('members').select('user_id, role, display_name, status').eq('space_id', sid).then(must),
+        sb.from('member_teams').select('user_id, cat_id, role, cat_name').eq('space_id', sid).then(must)
+      ]).then(function (a) { return { mem: a[0], mt: a[1] }; });
+    },
+    addPerson: function (uid, name, role) { return sb.from('members').upsert({ space_id: spaceId, user_id: uid, role: role, display_name: name || '', status: 'draft' }, { onConflict: 'space_id,user_id', ignoreDuplicates: true }).then(must); },
+
     /* ----- Espaces et membres ----- */
     mySpaces: function (edition) {
       return sb.from('members').select('role, cat_id, space_id, spaces(id, name, edition, org_name)').eq('user_id', user.id).then(must).then(function (rows) {
         return rows.filter(function (r) { return r.spaces && r.spaces.edition === edition; }).map(function (r) { return { id: r.space_id, name: r.spaces.name, orgName: r.spaces.org_name, role: r.role, catId: r.cat_id }; });
       });
     },
-    createSpace: function (edition, name, orgName) {
+    createSpace: function (edition, name, orgName, extra) {
       var id = (crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-8xxx-xxxxxxxxxxxx'.replace(/x/g, function () { return (Math.random() * 16 | 0).toString(16); }));
-      return sb.from('spaces').insert({ id: id, edition: edition, name: name, org_name: orgName || '', created_by: user.id }).then(must).then(function () { return id; });
+      return sb.from('spaces').insert(Object.assign({ id: id, edition: edition, name: name, org_name: orgName || '', created_by: user.id }, extra || {})).then(must).then(function () { return id; });
     },
     openSpace: function (id) {
       spaceId = id;
       return Promise.all([
-        sb.from('spaces').select('id, name, org_name, edition').eq('id', id).single().then(must),
-        sb.from('members').select('role, cat_id, display_name').eq('space_id', id).eq('user_id', user.id).single().then(must),
+        sb.from('spaces').select('*').eq('id', id).single().then(must),
+        sb.from('members').select('*').eq('space_id', id).eq('user_id', user.id).single().then(must),
         // v4.4 : toutes les équipes de la personne (null si la base n'est pas encore mise à jour)
         sb.from('member_teams').select('cat_id, role').eq('space_id', id).eq('user_id', user.id).then(function (r) { return r.error ? null : r.data; }, function () { return null; })
       ]).then(function (a) { return { space: a[0], me: a[1], teams: a[2] }; });
     },
     updateSpace: function (fields) { return sb.from('spaces').update(fields).eq('id', spaceId).then(must); },
-    members: function () { return sb.from('members').select('user_id, role, cat_id, display_name, email, joined_at').eq('space_id', spaceId).order('joined_at').then(must); },
+    members: function () { return sb.from('members').select('user_id, role, cat_id, display_name, email, joined_at, status, answer, answered_at').eq('space_id', spaceId).order('joined_at').then(must); },
     setMember: function (uid, fields) { return sb.from('members').update(fields).eq('space_id', spaceId).eq('user_id', uid).then(must); },
-    teamMembers: function () { return sb.from('member_teams').select('user_id, cat_id, role').eq('space_id', spaceId).then(must); },
-    setTeam: function (uid, catId, role) { return sb.from('member_teams').upsert({ space_id: spaceId, user_id: uid, cat_id: catId, role: role }, { onConflict: 'space_id,user_id,cat_id' }).then(must); },
+    teamMembers: function () { return sb.from('member_teams').select('user_id, cat_id, role, cat_name').eq('space_id', spaceId).then(must); },
+    setTeam: function (uid, catId, role, catName) { var r = { space_id: spaceId, user_id: uid, cat_id: catId, role: role }; if (catName != null) r.cat_name = catName; return sb.from('member_teams').upsert(r, { onConflict: 'space_id,user_id,cat_id' }).then(must); },
     removeTeam: function (uid, catId) { return sb.from('member_teams').delete().eq('space_id', spaceId).eq('user_id', uid).eq('cat_id', catId).then(must); },
     removeMember: function (uid) { return sb.from('members').delete().eq('space_id', spaceId).eq('user_id', uid).then(must); },
 
@@ -750,19 +814,19 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
 
     /* ----- Fichiers ----- */
     upload: function (id, blob) { return sb.storage.from(BUCKET).upload(spaceId + '/' + id, blob, { upsert: false, contentType: blob.type || 'application/octet-stream' }).then(function (r) { if (r.error && !/exists|Duplicate/i.test(r.error.message || '')) throw r.error; }); },
-    download: function (id) { return sb.storage.from(BUCKET).download(spaceId + '/' + id).then(must); },
+    download: function (id, sid) { return sb.storage.from(BUCKET).download((sid || spaceId) + '/' + id).then(must); },
     removeFile: function (id) { return sb.storage.from(BUCKET).remove([spaceId + '/' + id]).then(must); }
   };
   window.Cloud = Cloud;
 })();
 </script>
-<script>/* Event Manager Pro v4.5 — bouton Installer sur tous les écrans, plusieurs équipes par personne, s'installe comme une application, en ligne (comptes, invitations, synchronisation), réunions, équipes habituelles, missions, OK des chefs (avec réserve), budget par équipe, jour J, bilan.
+<script>/* Event Manager Pro v5.0 — chacun organise ses événements (annuaire, répartition des rôles, réponses), bouton Installer, plusieurs équipes par personne, s'installe comme une application, en ligne (comptes, invitations, synchronisation), réunions, équipes habituelles, missions, OK des chefs (avec réserve), budget par équipe, jour J, bilan.
    Sans compte, les données restent dans ce navigateur (localStorage) ; avec un compte, elles sont partagées en ligne (Supabase). */
 (function () {
   'use strict';
 
   var B = window.BRAND || {};
-  var APP_VERSION = '4.5';
+  var APP_VERSION = '5.0';
   var KEY = B.storageKey || 'emp_v2';
 
   /* ---------- Outils ---------- */
@@ -815,6 +879,8 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     meetings: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/><circle cx="9" cy="15" r="1.3"/><circle cx="15" cy="15" r="1.3"/>',
     catalog: '<rect x="3" y="4" width="18" height="5" rx="1.5"/><rect x="3" y="11" width="18" height="5" rx="1.5"/><path d="M7 20h10"/>'
   };
+  IC.roles = '<circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><path d="M16 11l2 2 4-4"/>';
+  IC.notify = '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-5.1A8 8 0 1 1 21 12z"/><path d="M9 11h6M9 14h4"/>';
   function icon(n) { return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">' + (IC[n] || '') + '</svg>'; }
 
   var COLORS = ['#E8B52C', '#3B6FD8', '#1F9D6B', '#E07B39', '#7A5AF8', '#D6457A', '#0FA3B1', '#84A93C', '#5B6B8C', '#2F3B66', '#B5651D', '#C93C3C'];
@@ -1088,7 +1154,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
 
   /* ---------- État ---------- */
   var state, ui = { view: null, teamId: null, open: {}, mFilter: 'all', liveDay: null, liveTime: null, evOpen: false };
-  var EV_VIEWS = ['dash', 'teams', 'team', 'myteam', 'missions', 'program', 'meetings', 'budget', 'people', 'live', 'debrief'];
+  var EV_VIEWS = ['dash', 'teams', 'team', 'myteam', 'missions', 'program', 'meetings', 'budget', 'people', 'live', 'debrief', 'roles', 'notify'];
   function seed() { var ev = demoEvent(); return migrate({ v: 2, eventId: ev.id, role: { kind: 'org' }, orgName: 'Cedric', events: [ev], catalog: [] }); }
   function load() {
     try {
@@ -1098,7 +1164,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     return seed();
   }
   function save() {
-    if (ON.on) { saveCache(); schedulePush(); return; }
+    if (ON.on) { saveCache(); schedulePush(); syncSpaceMeta(); return; }
     try { localStorage.setItem(KEY, JSON.stringify(state)); }
     catch (e) { toast('Sauvegarde impossible : la mémoire du navigateur est pleine ou bloquée.'); }
   }
@@ -1305,7 +1371,12 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
 
   /* ---------- Navigation ---------- */
   function navItems() {
-    if (!isOrg()) return [['myteam', 'Mon équipe'], ['meetings', 'Réunions'], ['program', 'Programme'], ['live', 'Jour J — en direct'], ['sep', 'Plus'], ['home', 'Événements'], ['settings', 'Aide & réglages']];
+    if (!isOrg()) return [['myteam', 'Mon équipe'], ['meetings', 'Réunions'], ['program', 'Programme'], ['live', 'Jour J — en direct'], ['sep', 'Plus'], ['home', ON.on ? 'Mes événements' : 'Événements'], ['settings', 'Aide & réglages']];
+    if (ON.on) {
+      if (!curEv()) return [['home', 'Mes événements'], ['sep', ''], ['settings', 'Aide & réglages']];
+      return [['home', 'Mes événements'], ['sep', curEv().name], ['dash', 'Vue d\'ensemble'], ['teams', 'Équipes'], ['roles', 'Répartition des rôles'], ['notify', 'Prévenir l\'équipe'], ['missions', 'Missions & tâches'], ['program', 'Programme'], ['meetings', 'Réunions'],
+        ['budget', 'Budget & finances'], ['people', 'Participants'], ['sep', 'Le jour J'], ['live', 'Jour J — en direct'], ['debrief', 'Bilan'], ['sep', ''], ['catalog', 'Équipes habituelles'], ['settings', 'Aide & réglages']];
+    }
     if (!ui.evOpen || !curEv()) return [['home', 'Tableau de bord'], ['catalog', 'Équipes habituelles'], ['sep', ''], ['settings', 'Aide & réglages']];
     return [['home', 'Tableau de bord'], ['catalog', 'Équipes habituelles'], ['sep', curEv().name], ['dash', 'Vue d\'ensemble'], ['teams', 'Équipes'], ['missions', 'Missions & tâches'], ['program', 'Programme'], ['meetings', 'Réunions'],
       ['budget', 'Budget & finances'], ['people', 'Participants'], ['sep', 'Le jour J'], ['live', 'Jour J — en direct'], ['debrief', 'Bilan'], ['sep', ''], ['settings', 'Aide & réglages']];
@@ -1352,14 +1423,15 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
   function render() {
     var ev = curEv();
     if (!isOrg()) ui.evOpen = true;
-    if (!ui.view) ui.view = isOrg() ? 'home' : 'myteam';
+    if (ON.on) ui.evOpen = !!ev; // en ligne : un espace = un événement
+    if (!ui.view) ui.view = isOrg() ? (ON.on && ev ? 'dash' : 'home') : 'myteam';
     if (isOrg() && !ui.evOpen && EV_VIEWS.indexOf(ui.view) >= 0) ui.view = 'home';
     if (!ev && ui.view !== 'settings') ui.view = 'home';
-    if (!isOrg() && ['dash', 'teams', 'team', 'missions', 'budget', 'people', 'debrief', 'catalog'].indexOf(ui.view) >= 0) ui.view = 'myteam';
+    if (!isOrg() && ['dash', 'teams', 'team', 'missions', 'budget', 'people', 'debrief', 'catalog', 'roles', 'notify'].indexOf(ui.view) >= 0) ui.view = 'myteam';
     if (!ON.on && !isOrg() && !catOf(state.role.catId)) state.role = { kind: 'org' };
     renderChrome(ev);
-    var V = { home: vHome, catalog: vCatalog, dash: vDash, teams: vTeams, team: vTeam, myteam: vTeam, missions: vMissions, program: vProgram, meetings: vMeetings, budget: vBudget, people: vPeople, live: vLive, debrief: vDebrief, settings: vSettings };
-    $('#view').innerHTML = (V[ui.view] || vDash)(ev);
+    var V = { home: vHome, catalog: vCatalog, dash: vDash, teams: vTeams, team: vTeam, myteam: vTeam, missions: vMissions, program: vProgram, meetings: vMeetings, budget: vBudget, people: vPeople, live: vLive, debrief: vDebrief, settings: vSettings, roles: vRoles, notify: vNotify };
+    $('#view').innerHTML = (ui.view !== 'home' && ui.view !== 'settings' ? answerBanner() : '') + (V[ui.view] || vDash)(ev);
     document.title = (ev && ui.evOpen ? ev.name + ' · ' : '') + 'Event Manager Pro';
   }
   function go(v, teamId) {
@@ -1371,6 +1443,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
 
   /* ---------- Vue : liste des événements ---------- */
   function vHome() {
+    if (ON.on) return vEvents();
     var evs = state.events.slice().sort(function (a, b) { return a.start < b.start ? -1 : 1; });
     var up = evs.filter(function (e) { return phase(e) !== 'after'; }), past = evs.filter(function (e) { return phase(e) === 'after'; });
     var h = vhead('Tableau de bord', 'Tous vos événements en un coup d\'œil. Cliquez sur un événement pour voir tous ses détails.', isOrg() ? btn('+ Nouvel événement', 'new-event', 'btn-gold btn-lg') : '');
@@ -2077,8 +2150,9 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
   /* ---------- Formulaires métier ---------- */
   var teamOptions = function (ev, general) { return (general ? [['', 'Général / plusieurs équipes']] : []).concat(ev.teams.map(function (t) { return [t.id, t.name + (t.lead ? ' (' + t.lead + ')' : '')]; })); };
 
-  function formEvent(ev) {
-    var isNew = !ev;
+  function formEvent(ev, opt) {
+    var isNew = !ev; opt = opt || {};
+    var cats = opt.catalog || state.catalog, clist = cats.filter(function (c) { return !c.hidden; });
     var fields = [
       { k: 'name', label: 'Nom de l\'événement', req: true, ph: 'Ex. : Conférence des Leaders' },
       { k: 'type', label: 'Type', type: 'select', options: Object.keys(EV_TYPES).map(function (k) { return [k, EV_TYPES[k]]; }), half: true },
@@ -2092,10 +2166,11 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
       { k: 'goal', label: 'Objectif de collecte (€)', type: 'number', half: true },
       { k: 'description', label: 'Description', type: 'textarea', rows: 2 }
     ];
+    if (isNew && opt.note) fields.unshift({ type: 'note', k: '_src', html: opt.note });
     if (isNew) {
-      fields.splice(1, 0,
-        { k: 'teams', label: 'Équipes qui participent', type: 'checks', def: catList().map(function (c) { return c.id; }),
-          options: catList().map(function (c) { return [c.id, '<span class="dot" style="background:' + esc(c.color) + '"></span>' + esc(c.name) + (c.lead ? ' <small class="muted">(' + esc(c.lead) + ')</small>' : '')]; }),
+      fields.splice(opt.note ? 2 : 1, 0,
+        { k: 'teams', label: 'Équipes qui participent', type: 'checks', def: clist.map(function (c) { return c.id; }),
+          options: clist.map(function (c) { return [c.id, '<span class="dot" style="background:' + esc(c.color) + '"></span>' + esc(c.name) + (c.lead ? ' <small class="muted">(' + esc(c.lead) + ')</small>' : '')]; }),
           hint: 'Décochez les équipes qui ne servent pas. Vous pourrez en ajouter ou en retirer après.' },
         { k: 'tplM', label: 'Proposer les missions habituelles de chaque équipe (avec leurs tâches et des dates calculées)', type: 'checkbox', def: true });
     } else {
@@ -2108,8 +2183,9 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
       if (isNew) {
         var e = blankEvent(v), n = 0;
         if (!v.okDeadline) e.okDeadline = addDays(e.start, -2);
-        state.catalog.forEach(function (c) { if (v.teams.indexOf(c.id) >= 0) { addTeamToEvent(e, c, v.tplM); n++; } });
+        cats.forEach(function (c) { if (v.teams.indexOf(c.id) >= 0) { addTeamToEvent(e, c, v.tplM); n++; } });
         log(e, 'a créé l\'événement avec ' + n + ' équipe(s).');
+        if (opt.onCreate) { opt.onCreate(e); return; }
         state.events.push(e); state.eventId = e.id; ui.view = 'teams'; ui.evOpen = true;
         toast('Événement créé avec ' + n + ' équipe(s). Vérifiez maintenant les chefs.');
       } else {
@@ -2365,6 +2441,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
       n.expenses = []; n.contributions = []; n.incidents = []; n.checkins = {}; n.log = []; n.files = []; n.meetings = [];
       n.participants.forEach(function (x) { x.id = uid('u'); x.days = {}; x.registered = false; });
       n.debrief = { good: '', improve: '', decisions: '' };
+      if (ON.on) { log(n, 'a créé l\'événement à partir de « ' + ev.name + ' ».'); spawnEvent(n, { space: ON.space.id, cats: clone(state.catalog), label: ev.name }); return; }
       state.events.push(n); state.eventId = n.id; ui.view = 'dash'; ui.evOpen = true;
       log(n, 'a créé l\'événement à partir de « ' + ev.name + ' ».');
       toast('Nouvel événement créé. Pensez aux leçons du bilan !');
@@ -2396,7 +2473,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     'close-modal': closeModal,
     'm-delete': function () { if (formCtx && formCtx.onDelete && formCtx.onDelete() !== false) { closeModal(); save(); render(); } },
     'open-event': function (el) { state.eventId = el.getAttribute('data-id'); ui.liveDay = null; ui.evOpen = true; save(); go(isOrg() ? 'dash' : 'myteam'); },
-    'new-event': function () { if (isOrg()) formEvent(null); },
+    'new-event': function () { if (ON.on || (CL.el && !CL.el.hidden && Cloud.user())) return newEventOnline(); if (isOrg()) formEvent(null); },
     'edit-event': function (el, ev) {
       if (!isOrg()) return;
       var id = el.getAttribute('data-id'), e = id ? state.events.filter(function (x) { return x.id === id; })[0] : ev;
@@ -2405,6 +2482,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     'del-event': function (el, ev) {
       if (!isOrg()) return;
       if (!confirm('Supprimer définitivement « ' + ev.name + ' » et toutes ses données ?')) return;
+      if (ON.on) { Cloud.deleteSpace().then(function () { closeSpace(true); ON.list = null; clSpaces(); toast('Événement supprimé.'); }, function (e) { toast(Cloud.frErr(e)); }); return; }
       dropFiles(ev, ev.files || []);
       state.events = state.events.filter(function (e) { return e.id !== ev.id; });
       state.eventId = state.events[0] ? state.events[0].id : null; save(); go('home');
@@ -3043,6 +3121,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     ON.teams = (ON.me && ON.me.teams) || [];
     ON.teams.sort(function (a, b) { var x = catOf(a.cat_id), y = catOf(b.cat_id); return ((x && x.name) || '').localeCompare((y && y.name) || ''); });
     ON.tr = {}; ON.teams.forEach(function (t) { ON.tr[t.cat_id] = t.role; });
+    if (ON.me && ON.me.answer === 'no') ON.tr = {}; // a répondu « je ne peux pas » : plus de droits d'équipe
     if (ON.me && ON.me.role === 'org') { state.role = { kind: 'org' }; return; }
     var ok = function (v) { var p = String(v || '').split(':'); return p.length === 2 && !!p[1] && ON.tr[p[1]] === p[0]; };
     var want = lsGet(KEY + '_team_' + ON.space.id), cur = state.role.kind + ':' + state.role.catId;
@@ -3089,7 +3168,8 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     get: function (id) {
       return FileDB.get(id).catch(function () { return null; }).then(function (b) {
         if (b || !ON.on || !Cloud.ready()) return b;
-        return Cloud.download(id).then(function (b2) { FileDB.put(id, b2).catch(noop); return b2; });
+        return Cloud.download(id).catch(function (e) { if (ON.space && ON.space.legacy_space) return Cloud.download(id, ON.space.legacy_space); throw e; })
+          .then(function (b2) { FileDB.put(id, b2).catch(noop); return b2; });
       });
     },
     del: function (id) { FileDB.del(id).catch(noop); if (ON.on && Cloud.ready()) Cloud.removeFile(id).catch(noop); return Promise.resolve(); }
@@ -3150,7 +3230,8 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     clShow(inviteBanner() +
       '<div class="cl-tabs"><button type="button" data-act="cl-mode" data-m="signup" class="' + (su ? 'on' : '') + '">Créer un compte</button><button type="button" data-act="cl-mode" data-m="signin" class="' + (su ? '' : 'on') + '">J\'ai déjà un compte</button></div>' +
       '<form id="cl-form" class="cl-form" data-f="' + (su ? 'signup' : 'signin') + '" novalidate>' +
-      (su ? '<label>Votre prénom et nom<input name="name" autocomplete="name" placeholder="ex. Sandra Mbala"></label>' : '') +
+      (su ? '<label>Votre prénom et nom<input name="name" autocomplete="name" placeholder="ex. Sandra Mbala"></label>' +
+        '<label>Numéro WhatsApp <small>(pour que les organisateurs puissent vous prévenir)</small><input name="phone" type="tel" autocomplete="tel" inputmode="tel" placeholder="ex. +49 170 1234567"></label>' : '') +
       '<label>E-mail<input name="email" type="email" autocomplete="email" inputmode="email" autocapitalize="off"></label>' +
       '<label>Mot de passe' + (su ? ' <small>(au moins 6 caractères)</small>' : '') + '<input name="pw" type="password" autocomplete="' + (su ? 'new-password' : 'current-password') + '"></label>' +
       '<p class="cl-err" id="cl-err">' + esc(msg || '') + '</p>' +
@@ -3163,27 +3244,258 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
   }
   function clSpaces(msg, auto) {
     var nLocal = 0; try { var ls = JSON.parse(lsGet(KEY) || 'null'); nLocal = ls && ls.events ? ls.events.length : 0; } catch (e) { /* rien */ }
-    var def = B.id === 'PAMG' ? 'Pray and Move Generation' : '';
     clShow('<p class="cl-hello">Bonjour <b>' + esc(Cloud.displayName()) + '</b> 👋</p>' + (msg ? '<p class="cl-inv bad">' + esc(msg) + '</p>' : '') +
-      '<div id="cl-list" class="cl-list"><p class="muted">Chargement de vos espaces…</p></div>' +
-      '<details class="cl-new" id="cl-new"><summary>Vous êtes l\'organisateur ? Créer l\'espace de votre organisation</summary>' +
-      '<form id="cl-form" class="cl-form" data-f="space" novalidate><label>Nom de l\'espace (votre église, association…)<input name="name" value="' + esc(def) + '" placeholder="ex. Église de Francfort"></label>' +
-      '<label class="cl-radio"><input type="radio" name="from" value="empty" checked> Commencer vide (avec les équipes habituelles)</label>' +
-      (nLocal ? '<label class="cl-radio"><input type="radio" name="from" value="local"> Reprendre ce qui est déjà sur cet appareil (' + nLocal + ' événement' + (nLocal > 1 ? 's' : '') + ', équipes, fichiers)</label>' : '') +
-      '<p class="cl-err" id="cl-err"></p><button class="btn btn-gold" type="submit">Créer l\'espace</button></form></details>' +
+      '<div id="cl-list" class="cl-list"><p class="muted">Chargement de vos événements…</p></div>' +
+      '<button type="button" class="btn btn-gold btn-lg cl-newev" data-act="new-event">+ Créer un événement</button>' +
+      (nLocal ? '<button type="button" class="btn cl-import" data-act="cl-import">Mettre en ligne les ' + nLocal + ' événement' + (nLocal > 1 ? 's' : '') + ' de cet appareil</button>' : '') +
       '<div class="cl-sep"></div><div class="cl-row"><button type="button" class="btn btn-ghost" data-act="cl-logout">Se déconnecter</button><button type="button" class="btn btn-ghost" data-act="cl-local">Continuer sans compte</button></div>');
-    Cloud.mySpaces(B.id).then(function (list) {
+    loadEvents(true).then(function (list) {
       var el = $('#cl-list'); if (!el) return;
-      if (!list.length) {
-        el.innerHTML = '<div class="cl-empty"><b>Vous n\'avez pas encore d\'espace.</b><br>Chef d\'équipe ou membre : ouvrez le lien d\'invitation que l\'organisateur vous a envoyé.<br>Organisateur : créez l\'espace ci-dessous.</div>';
-        var d = $('#cl-new'); if (d) d.open = true;
-        return;
-      }
-      if (auto && list.length === 1) { openSpace(list[0].id).catch(function (e) { toast(Cloud.frErr(e)); }); return; }
-      el.innerHTML = '<p class="cl-lab">Vos espaces</p>' + list.map(function (s) {
-        return '<button type="button" class="cl-space" data-act="cl-open" data-id="' + s.id + '"><b>' + esc(s.name) + '</b><small>Vous êtes ' + esc(ROLE_FR[s.role] || s.role) + '</small><span>Ouvrir ›</span></button>';
-      }).join('');
+      var inv = list.filter(function (e) { return e.role !== 'org' && !e.answer; });
+      if (auto && list.length === 1 && !inv.length) { openSpace(list[0].id).catch(function (e) { toast(Cloud.frErr(e)); }); return; }
+      el.innerHTML = eventsListHtml(list);
     }).catch(function (e) { var el = $('#cl-list'); if (el) el.innerHTML = '<p class="cl-err">' + esc(Cloud.frErr(e)) + '</p><button type="button" class="btn" data-act="cl-spaces">Réessayer</button>'; });
+  }
+
+  /* ----- v5.0 : mes événements, annuaire, répartition des rôles, réponses ----- */
+  function seq(fns) { return fns.reduce(function (p, f) { return p.then(f); }, Promise.resolve()); }
+  function ensureProfile() {
+    if (!Cloud.ready() || !Cloud.user()) return Promise.resolve();
+    var u = Cloud.user(), md = u.user_metadata || {};
+    return Cloud.myProfile(B.id).then(function (p) {
+      var name = (p && p.name) || Cloud.displayName(), phone = (p && p.phone) || md.phone || '';
+      ON.prof = { name: name, phone: phone };
+      if (!p || p.name !== name || p.phone !== phone) return Cloud.saveProfile(B.id, name, phone);
+    }).catch(noop);
+  }
+  function loadEvents(force) {
+    if (!Cloud.ready() || !Cloud.user()) return Promise.resolve(ON.list || []);
+    if (!force && ON.listP && Date.now() - ON.listAt < 5000) return ON.listP;
+    ON.listAt = Date.now();
+    ON.listP = Cloud.myEvents(B.id).then(function (list) {
+      ON.list = list;
+      var mine = list.filter(function (e) { return e.role === 'org'; }).map(function (e) { return e.id; });
+      return Cloud.answers(mine).then(function (a) { ON.ans = a; return list; }, function () { ON.ans = []; return list; });
+    });
+    return ON.listP;
+  }
+  var fmtDay = function (d) { var x = parseD(d); return d && !isNaN(x) ? x.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }) : ''; };
+  function myRoleText(e) {
+    if (e.role === 'org') return 'Organisateur';
+    if (!e.teams.length) return ROLE_FR[e.role] ? ROLE_FR[e.role].charAt(0).toUpperCase() + ROLE_FR[e.role].slice(1) : '';
+    return e.teams.map(function (t) { return (t.role === 'lead' ? 'Chef' : 'Membre') + ' — ' + (t.cat_name || 'équipe'); }).join(' · ');
+  }
+  function eventsListHtml(list) {
+    var me = Cloud.user() ? Cloud.user().id : '', h = '';
+    if (ON.prof && !ON.prof.phone) h += '<div class="card ev-phone"><b>Ajoutez votre numéro WhatsApp</b><p class="small muted">Les organisateurs pourront vous prévenir quand ils vous choisissent.</p><div class="ev-phone-row"><input id="prof-phone" type="tel" inputmode="tel" placeholder="ex. +49 170 1234567" aria-label="Numéro WhatsApp">' + btn('Enregistrer', 'prof-save', 'btn-primary btn-sm') + '</div></div>';
+    var inv = list.filter(function (e) { return e.role !== 'org' && !e.answer; });
+    if (inv.length) h += '<div class="ev-invs"><p class="cl-lab">🎉 Nouveau : vous avez été choisi(e)</p>' + inv.map(function (e) {
+      return '<div class="card ev-inv"><div><b>' + esc(e.name) + '</b>' + (e.date ? ' <small class="muted">· ' + esc(fmtDay(e.date)) + '</small>' : '') + '<p>' + esc(myRoleText(e)) + '</p></div><div class="m-actions">' +
+        btn('✓ J\'accepte', 'ev-yes', 'btn-ok btn-sm', ' data-id="' + e.id + '"') + btn('Je ne peux pas', 'ev-no', 'btn-ghost btn-sm', ' data-id="' + e.id + '"') + btn('Voir', 'cl-open', 'btn-sm', ' data-id="' + e.id + '"') + '</div></div>';
+    }).join('') + '</div>';
+    var seen = lsGet(KEY + '_ansSeen') || '', news = (ON.ans || []).filter(function (a) { return a.user_id !== me && a.answered_at && a.answered_at > seen && a.status === 'active'; });
+    if (news.length) h += '<div class="card ev-news"><p class="cl-lab">Nouvelles réponses</p>' + news.map(function (a) {
+      var e = list.filter(function (x) { return x.id === a.space_id; })[0];
+      return '<p>' + (a.answer === 'yes' ? '✓ <b>' + esc(a.display_name || 'Quelqu\'un') + '</b> a accepté' : '✗ <b>' + esc(a.display_name || 'Quelqu\'un') + '</b> ne peut pas venir') + ' · « ' + esc(e ? e.name : '') + ' »</p>';
+    }).join('') + btn('Vu', 'ev-seen', 'btn-sm') + '</div>';
+    if (!list.length) return h + '<div class="cl-empty"><b>Vous n\'avez pas encore d\'événement.</b><br>Créez le vôtre avec « + Créer un événement », ou attendez qu\'un organisateur vous choisisse : l\'événement apparaîtra ici tout seul.</div>';
+    var t0 = today(), sorted = list.slice().sort(function (a, b) { var pa = (a.date || '9') < t0, pb = (b.date || '9') < t0; if (pa !== pb) return pa ? 1 : -1; return pa ? ((b.date || '') < (a.date || '') ? -1 : 1) : ((a.date || '') < (b.date || '') ? -1 : 1); });
+    h += '<p class="cl-lab">Mes événements</p><div class="ev-cards">' + sorted.map(function (e) {
+      var as = (ON.ans || []).filter(function (a) { return a.space_id === e.id && a.user_id !== me; });
+      var cnt = e.role === 'org' && as.length ? '<small class="ev-cnt">' + ['yes', 'no'].map(function (k) { var n = as.filter(function (a) { return a.status === 'active' && a.answer === k; }).length; return n ? (k === 'yes' ? '✓ ' : '✗ ') + n : ''; }).join(' ') +
+        (function () { var w = as.filter(function (a) { return a.status === 'active' && !a.answer; }).length, d = as.filter(function (a) { return a.status === 'draft'; }).length; return (w ? ' ⏳ ' + w : '') + (d ? ' · ' + d + ' en brouillon' : ''); })() + '</small>' : '';
+      var dd = parseD(e.date), past = e.date && e.date < t0;
+      return '<button type="button" class="cl-space ev-card' + (past ? ' past' : '') + '" data-act="cl-open" data-id="' + e.id + '">' +
+        (e.date && !isNaN(dd) ? '<span class="evdate"><b>' + dd.getDate() + '</b><span>' + dd.toLocaleDateString('fr-FR', { month: 'short' }).replace('.', '') + ' ' + String(dd.getFullYear()).slice(2) + '</span></span>' : '<span class="evdate"><b>—</b></span>') +
+        '<span class="ev-main"><b>' + esc(e.name || 'Événement') + '</b><small>' + esc(myRoleText(e)) + (e.answer === 'no' ? ' · <em>vous ne pouvez pas</em>' : '') + '</small>' + cnt + '</span><span>Ouvrir ›</span></button>';
+    }).join('') + '</div>';
+    return h;
+  }
+  function vEvents() {
+    setTimeout(function () { loadEvents(false).then(function (l) { var el = $('#ev-list'); if (el && ui.view === 'home') el.innerHTML = eventsListHtml(l); }, noop); }, 0);
+    return vhead('Mes événements', 'Les événements que vous organisez et ceux où vous avez été choisi(e). Touchez un événement pour l\'ouvrir.', btn('+ Nouvel événement', 'new-event', 'btn-gold btn-lg')) +
+      '<div id="ev-list" class="cl-list ev-list">' + (ON.list ? eventsListHtml(ON.list) : '<p class="muted">Chargement…</p>') + '</div>';
+  }
+  /* Bandeau dans l'événement : répondre à l'invitation. */
+  function answerBanner() {
+    if (!ON.on || isOrg() || !ON.me || ON.me.status === 'draft') return '';
+    if (!ON.me.answer) return '<div class="card ev-inv in-ev"><div><b>Vous avez été choisi(e) pour cet événement</b><p>' + esc(roleName()) + (ON.teams.length > 1 ? ' (et ' + (ON.teams.length - 1) + ' autre(s) équipe(s))' : '') + '. Pouvez-vous servir ?</p></div><div class="m-actions">' +
+      btn('✓ J\'accepte', 'ev-yes', 'btn-ok btn-sm', ' data-id="' + ON.space.id + '"') + btn('Je ne peux pas', 'ev-no', 'btn-ghost btn-sm', ' data-id="' + ON.space.id + '"') + '</div></div>';
+    if (ON.me.answer === 'no') return '<div class="card ev-inv in-ev no"><div><b>Vous avez répondu que vous ne pouvez pas</b><p>Vous ne voyez donc plus les missions de l\'équipe.</p></div><div class="m-actions">' + btn('Finalement, j\'accepte', 'ev-yes', 'btn-ok btn-sm', ' data-id="' + ON.space.id + '"') + '</div></div>';
+    return '';
+  }
+  function answerEvent(sid, a) {
+    Cloud.answer(sid, a).then(function () {
+      toast(a === 'yes' ? 'Merci ! L\'organisateur voit que vous acceptez.' : 'C\'est noté : l\'organisateur voit que vous ne pouvez pas.');
+      var e = (ON.list || []).filter(function (x) { return x.id === sid; })[0] || (ON.on && ON.space && ON.space.id === sid ? { id: sid, name: ON.space.name, createdBy: ON.space.created_by, teams: ON.teams.map(function (t) { var c = catOf(t.cat_id); return { role: t.role, cat_name: c ? c.name : '' }; }), role: ON.me.role } : null);
+      if (e) e.answer = a;
+      var after = function () { if (ON.on && ON.space && ON.space.id === sid) { ON.me.answer = a; setTeams(); fullSync(); render(); } else if (CL.el && !CL.el.hidden) { var el = $('#cl-list'); if (el) el.innerHTML = eventsListHtml(ON.list || []); } else render(); };
+      after();
+      // Prévenir aussi l'organisateur sur WhatsApp
+      if (!e || !e.createdBy) return;
+      Cloud.directory(B.id).then(function (dir) {
+        var o = dir.filter(function (p) { return p.user_id === e.createdBy; })[0];
+        if (!o) return;
+        var txt = 'Bonjour ' + (o.name || '') + ', ' + (a === 'yes' ? 'j\'accepte avec joie' : 'désolé(e), je ne pourrai pas') + ' pour « ' + (e.name || '') + ' » (' + myRoleText(e) + '). ' + (ON.prof && ON.prof.name ? ON.prof.name : Cloud.displayName());
+        openForm('Prévenir l\'organisateur', [{ type: 'note', k: '_n', html: '<p>Votre réponse est déjà visible dans l\'application. Vous pouvez aussi prévenir <b>' + esc(o.name || 'l\'organisateur') + '</b> sur WhatsApp.</p><div class="m-actions">' + btn('Envoyer sur WhatsApp', 'cl-wa', 'btn-gold', ' data-t="' + esc(txt) + '" data-p="' + esc(o.phone || '') + '"') + '</div>' }], {}, function () {}, { saveLabel: 'Fermer' });
+      }, noop);
+    }, function (e) { toast(Cloud.frErr(e)); });
+  }
+  /* Nouvel événement en ligne : un nouvel espace, avec les équipes (et les personnes) reprises d'un événement que l'on organise. */
+  function dfltSource() { return { space: null, cats: migrate({ v: 2, events: [], catalog: [], role: { kind: 'org' } }).catalog, label: '' }; }
+  function pickSource() {
+    if (ON.on && isOrg() && state.catalog.length) return Promise.resolve({ space: ON.space.id, cats: clone(state.catalog), label: (curEv() || {}).name || ON.space.name });
+    return loadEvents(false).then(function (list) {
+      var mine = list.filter(function (e) { return e.role === 'org'; }).sort(function (a, b) { return (b.date || '') < (a.date || '') ? -1 : 1; })[0];
+      if (!mine) return dfltSource();
+      return Cloud.loadCats(mine.id).then(function (rows) {
+        if (!rows.length) return dfltSource();
+        return { space: mine.id, cats: rows.map(function (r) { return r.data; }).sort(function (a, b) { return (a.pos || 0) - (b.pos || 0); }), label: mine.name };
+      });
+    }).catch(dfltSource);
+  }
+  function newEventOnline() {
+    pickSource().then(function (src) {
+      formEvent(null, { catalog: src.cats, note: src.space ? 'Les équipes, leurs chefs et leurs membres sont repris de « <b>' + esc(src.label) + '</b> ». Vous pourrez tout changer dans « Répartition des rôles ».' : 'Vous êtes l\'organisateur de cet événement. Ensuite, choisissez les chefs et les membres dans « Répartition des rôles ».',
+        onCreate: function (e) { spawnEvent(e, src); } });
+    });
+  }
+  function spawnEvent(e, src) {
+    toast('Création de l\'événement…');
+    Cloud.createSpace(B.id, e.name, (ON.prof && ON.prof.name) || Cloud.displayName(), { kind: 'event', event_date: e.start || '' }).then(function (sid) {
+      return openSpace(sid, { eventId: e.id, catalog: src.cats, events: [e] }).then(function () { return src.space ? copyRoles(src.space, e) : null; }).then(function () {
+        ON.list = null; ui.view = 'roles'; ON.memAt = 0; render();
+        toast('Événement créé. Vérifiez la répartition des rôles, puis touchez « Publier les rôles ».');
+      });
+    }).catch(function (x) { toast(Cloud.frErr(x)); });
+  }
+  function copyRoles(srcSid, e) {
+    return Cloud.peopleOf(srcSid).then(function (p) {
+      var me = Cloud.user().id, cats = {};
+      e.teams.forEach(function (t) { cats[t.catId] = t.name; });
+      return seq(p.mem.filter(function (m) { return m.user_id !== me; }).map(function (m) {
+        var ts = p.mt.filter(function (t) { return t.user_id === m.user_id && cats[t.cat_id]; });
+        if (m.role !== 'org' && !ts.length) return function () {};
+        return function () {
+          return Cloud.addPerson(m.user_id, m.display_name, m.role === 'org' ? 'org' : ts.some(function (t) { return t.role === 'lead'; }) ? 'lead' : 'member')
+            .then(function () { return seq(ts.map(function (t) { return function () { return Cloud.setTeam(m.user_id, t.cat_id, t.role, cats[t.cat_id]); }; })); });
+        };
+      }));
+    }).catch(function (x) { toast('Les personnes n\'ont pas pu être reprises : ' + Cloud.frErr(x)); });
+  }
+  function syncSpaceMeta() {
+    var ev = state.events[0];
+    if (!isOrg() || !ev || !ON.space || ON.space.kind !== 'event') return;
+    if (ev.name === ON.space.name && (ev.start || '') === (ON.space.event_date || '')) return;
+    clearTimeout(ON.metaT);
+    ON.metaT = setTimeout(function () { var f = { name: ev.name, event_date: ev.start || '' }; Cloud.updateSpace(f).then(function () { if (ON.space) { Object.assign(ON.space, f); saveCache(); } ON.list = null; }, noop); }, 1200);
+  }
+  function importLocal() {
+    var base = load(), n = 0;
+    toast('Mise en ligne des événements…');
+    seq(base.events.map(function (ev) {
+      return function () {
+        return Cloud.createSpace(B.id, ev.name, Cloud.displayName(), { kind: 'event', event_date: ev.start || '' }).then(function (sid) {
+          Cloud.useSpace(sid);
+          var rows = decompose({ role: { kind: 'org' }, catalog: base.catalog, events: [ev] });
+          return Cloud.upsert(Object.keys(rows).map(function (k) { return rows[k]; })).then(function () {
+            var ids = (ev.files || []).map(function (f) { return f.id; }).concat((ev.expenses || []).filter(function (x) { return x.receiptId; }).map(function (x) { return x.receiptId; }));
+            return seq(ids.map(function (id) { return function () { return FileDB.get(id).then(function (b) { return b ? Cloud.upload(id, b) : null; }).catch(noop); }; }));
+          }).then(function () { n++; });
+        });
+      };
+    })).then(function () { toast(n + ' événement(s) mis en ligne.'); clSpaces(); }, function (e) { toast(Cloud.frErr(e)); clSpaces(); });
+  }
+  /* Répartition des rôles (organisateur) */
+  var personName = function (u) { var m = (ON.mem || []).filter(function (x) { return x.user_id === u; })[0], d = (ON.dir || []).filter(function (x) { return x.user_id === u; })[0]; return (d && d.name) || (m && (m.display_name || m.email)) || 'Sans nom'; };
+  var personPhone = function (u) { var d = (ON.dir || []).filter(function (x) { return x.user_id === u; })[0]; return d ? d.phone : ''; };
+  function stChip(m) {
+    if (!m) return '';
+    if (m.status === 'draft') return '<span class="chip">brouillon</span>';
+    if (m.answer === 'yes') return '<span class="chip ok">✓ accepté</span>';
+    if (m.answer === 'no') return '<span class="chip bad">✗ ne peut pas</span>';
+    return '<span class="chip warn">⏳ en attente</span>';
+  }
+  function vRoles(ev) {
+    setTimeout(function () { loadPeople(false); }, 0);
+    var h = vhead('Répartition des rôles', 'Choisissez qui est chef ou membre de chaque équipe parmi les inscrits. Une personne peut être dans plusieurs équipes. Tant que vous n\'avez pas publié, personne ne voit rien.');
+    return h + '<div id="cl-roles">' + rolesHtml(ev) + '</div>';
+  }
+  function rolesHtml(ev) {
+    if (!ON.mem || !ON.dir) return '<p class="muted">Chargement…</p>';
+    var me = Cloud.user() ? Cloud.user().id : '', mt = ON.mt || [];
+    var memOf = function (u) { return ON.mem.filter(function (m) { return m.user_id === u; })[0]; };
+    var drafts = ON.mem.filter(function (m) { return m.status === 'draft'; });
+    var h = drafts.length ? '<div class="card roles-pub"><div><b>' + drafts.length + ' personne(s) en brouillon</b><p class="small">Elles ne voient encore rien. Quand tout est prêt, publiez : l\'événement apparaîtra chez elles avec leur rôle.</p></div>' + btn('Publier les rôles', 'roles-pub', 'btn-gold btn-lg') + '</div>'
+      : '<div class="card roles-pub ok"><b>✓ Tout est publié.</b><p class="small">Chaque personne choisie voit l\'événement et son rôle. Les nouveaux ajouts passeront d\'abord en brouillon.</p></div>';
+    var dir = (ON.dir || []).filter(function (p) { return p.user_id !== me; }).sort(function (a, b) { return (a.name || '').localeCompare(b.name || ''); });
+    var opts = function (exclude) { return dir.filter(function (p) { return exclude.indexOf(p.user_id) < 0; }).map(function (p) { return '<option value="' + p.user_id + '">' + esc(p.name || 'Sans nom') + '</option>'; }).join(''); };
+    h += '<div class="grid g2 mt">' + ev.teams.map(function (t) {
+      var rows = mt.filter(function (x) { return x.cat_id === t.catId; }).sort(function (a, b) { return (a.role === 'lead' ? 0 : 1) - (b.role === 'lead' ? 0 : 1); });
+      var ids = rows.map(function (x) { return x.user_id; });
+      return '<div class="card roles-team" style="border-top-color:' + esc(t.color) + '"><h3>' + esc(t.name) + '</h3>' +
+        (rows.length ? rows.map(function (x) {
+          var m = memOf(x.user_id), nm = personName(x.user_id);
+          return '<div class="roles-row"><b>' + esc(nm) + '</b><select data-chg="roles-role" data-u="' + x.user_id + '" data-c="' + esc(t.catId) + '" aria-label="Rôle de ' + esc(nm) + '"><option value="lead"' + (x.role === 'lead' ? ' selected' : '') + '>Chef</option><option value="member"' + (x.role === 'member' ? ' selected' : '') + '>Membre</option></select>' + stChip(m) +
+            '<button class="cl-tx" data-act="roles-del" data-u="' + x.user_id + '" data-c="' + esc(t.catId) + '" title="Retirer de l\'équipe" aria-label="Retirer ' + esc(nm) + '">✕</button></div>';
+        }).join('') : '<p class="small muted">Personne pour l\'instant.</p>') +
+        '<select class="roles-add" data-chg="roles-add" data-c="' + esc(t.catId) + '" aria-label="Ajouter une personne à ' + esc(t.name) + '"><option value="">+ Ajouter une personne…</option>' + opts(ids) + '</select></div>';
+    }).join('') + '</div>';
+    var orgs = ON.mem.filter(function (m) { return m.role === 'org'; });
+    h += '<div class="card mt"><h3>Organisateurs</h3><p class="small muted">Ils voient et modifient tout l\'événement.</p>' + orgs.map(function (m) { return '<div class="roles-row"><b>' + esc(m.user_id === me ? 'Vous' : personName(m.user_id)) + '</b>' + (m.user_id === me ? '' : stChip(m)) + '</div>'; }).join('') +
+      '<select class="roles-add" data-chg="roles-org" aria-label="Ajouter un co-organisateur"><option value="">+ Ajouter un co-organisateur…</option>' + opts(orgs.map(function (m) { return m.user_id; })) + '</select></div>';
+    h += '<div class="card mt"><h3>Quelqu\'un n\'est pas dans la liste ?</h3><p class="small muted">La liste montre toutes les personnes inscrites dans l\'application. Si quelqu\'un ne l\'a pas encore, envoyez-lui un lien : il s\'inscrit et arrive directement dans l\'équipe choisie.</p>' + btn('🔗 Envoyer un lien d\'invitation', 'cl-invite', '') + '</div>';
+    return h;
+  }
+  function teamFill(cat, u, role) {
+    var ev = curEv(), t = teamByCat(ev, cat); if (!t) return;
+    var nm = personName(u), ph = personPhone(u);
+    t.people = (t.people || []).filter(function (p) { return p.name !== nm; });
+    if (role === 'lead') { t.lead = nm; if (ph) t.phone = ph; }
+    else { if (t.lead === nm) t.lead = ''; t.people.push({ id: uid('pm'), name: nm, role: '', phone: ph || '' }); }
+    save();
+  }
+  function teamUnfill(cat, u) {
+    var ev = curEv(), t = teamByCat(ev, cat); if (!t) return;
+    var nm = personName(u);
+    if (t.lead === nm) { t.lead = ''; t.phone = ''; }
+    t.people = (t.people || []).filter(function (p) { return p.name !== nm; });
+    save();
+  }
+  function rolesDone(p, msg) {
+    p.then(function () { ON.memAt = 0; loadPeople(true); if (msg) toast(msg); }, function (e) { toast(Cloud.frErr(e)); ON.memAt = 0; loadPeople(true); });
+  }
+  /* Prévenir l'équipe : un message WhatsApp prêt pour chaque personne choisie, et un pour le groupe. */
+  function notifyText(ev, u) {
+    var ts = (ON.mt || []).filter(function (x) { return x.user_id === u; }).map(function (x) { var t = teamByCat(ev, x.cat_id); return (x.role === 'lead' ? 'chef' : 'membre') + ' de « ' + (t ? t.name : x.cat_name || 'l\'équipe') + ' »'; });
+    var m = (ON.mem || []).filter(function (x) { return x.user_id === u; })[0];
+    var what = m && m.role === 'org' ? 'co-organisateur' : ts.join(', ');
+    return 'Bonjour ' + personName(u).split(' ')[0] + ' ! Tu as été choisi(e) pour « ' + ev.name + ' »' + (ev.start ? ' (' + fmtDay(ev.start) + ')' : '') + ' : ' + what + '.\nOuvre Event Manager Pro pour accepter ou dire si tu ne peux pas, et voir tes missions : ' + location.origin + location.pathname;
+  }
+  function vNotify(ev) {
+    setTimeout(function () { loadPeople(false); }, 0);
+    return vhead('Prévenir l\'équipe', 'Après la publication, envoyez à chacun son message WhatsApp. Les réponses (accepté ou non) s\'affichent ici et dans « Mes événements ».') + '<div id="cl-notify">' + notifyHtml(ev) + '</div>';
+  }
+  function notifyHtml(ev) {
+    if (!ON.mem || !ON.dir) return '<p class="muted">Chargement…</p>';
+    var me = Cloud.user() ? Cloud.user().id : '', ppl = ON.mem.filter(function (m) { return m.user_id !== me; });
+    if (!ppl.length) return '<div class="card"><p>Personne n\'a encore été choisi. Allez dans « Répartition des rôles ».</p>' + btn('Répartition des rôles', 'go', 'btn-primary', ' data-v="roles"') + '</div>';
+    var c = { yes: 0, no: 0, wait: 0, draft: 0 };
+    ppl.forEach(function (m) { if (m.status === 'draft') c.draft++; else if (m.answer === 'yes') c.yes++; else if (m.answer === 'no') c.no++; else c.wait++; });
+    var h = '<div class="kpis"><div class="kpi"><b>' + c.yes + '</b><span>ont accepté</span></div><div class="kpi"><b>' + c.no + '</b><span>ne peuvent pas</span></div><div class="kpi"><b>' + c.wait + '</b><span>en attente</span></div><div class="kpi"><b>' + c.draft + '</b><span>en brouillon</span></div></div>';
+    if (c.draft) h += '<div class="card roles-pub mt"><div><b>' + c.draft + ' personne(s) pas encore publiée(s)</b><p class="small">Publiez d\'abord, sinon elles ne verront pas l\'événement.</p></div>' + btn('Publier les rôles', 'roles-pub', 'btn-gold') + '</div>';
+    h += '<div class="card mt"><h2>Message pour chacun</h2>' + ppl.map(function (m) {
+      var ph = personPhone(m.user_id), txt = notifyText(ev, m.user_id);
+      return '<div class="notify-row"><div><b>' + esc(personName(m.user_id)) + '</b> ' + stChip(m) + '<br><small class="muted">' + esc(txt.split('\n')[0].split(' : ').slice(1).join(' : ')) + (ph ? ' · ' + esc(ph) : ' · pas de numéro') + '</small></div>' +
+        btn('WhatsApp', 'cl-wa', m.status === 'draft' ? 'btn-sm' : 'btn-gold btn-sm', ' data-t="' + esc(txt) + '" data-p="' + esc(ph || '') + '"' + (m.status === 'draft' ? ' disabled title="Publiez d\'abord les rôles"' : '')) + '</div>';
+    }).join('') + '</div>';
+    var grp = 'Bonjour à tous ! Les équipes de « ' + ev.name + ' »' + (ev.start ? ' (' + fmtDay(ev.start) + ')' : '') + ' sont prêtes :\n' + ev.teams.map(function (t) {
+      var rows = (ON.mt || []).filter(function (x) { return x.cat_id === t.catId; });
+      var ld = rows.filter(function (x) { return x.role === 'lead'; }).map(function (x) { return personName(x.user_id); }), mb = rows.filter(function (x) { return x.role === 'member'; }).map(function (x) { return personName(x.user_id); });
+      return '• ' + t.name + (ld.length ? ' : chef ' + ld.join(', ') : '') + (mb.length ? ' ; membres ' + mb.join(', ') : '');
+    }).join('\n') + '\nOuvrez Event Manager Pro pour voir votre rôle et répondre : ' + location.origin + location.pathname;
+    h += '<div class="card mt"><h2>Message pour le groupe WhatsApp</h2><textarea class="notify-grp" readonly rows="7">' + esc(grp) + '</textarea><div class="m-actions">' + btn('Envoyer au groupe', 'cl-wa', 'btn-gold', ' data-t="' + esc(grp) + '"') + btn('Copier', 'cl-copy', '', ' data-l="' + esc(grp) + '"') + '</div></div>';
+    return h;
   }
   function clSubmit(f) {
     var g = function (n) { var i = f.querySelector('[name="' + n + '"]'); return i ? i.value : ''; };
@@ -3192,14 +3504,17 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     var email = g('email').trim(), pw = g('pw'), name = g('name').trim();
     if ((kind === 'signup' || kind === 'signin') && !/^\S+@\S+\.\S+$/.test(email)) return fail('Entrez votre adresse e-mail.');
     if (kind === 'signup' && !name) return fail('Entrez votre prénom et nom : les autres verront qui a fait quoi.');
+    var phone = g('phone').trim();
+    if (kind === 'signup' && phone.replace(/\D/g, '').length < 7) return fail('Entrez votre numéro WhatsApp, avec l\'indicatif du pays (ex. +49…).');
     if (kind !== 'space' && pw.length < 6) return fail('Le mot de passe doit avoir au moins 6 caractères.');
     sb.disabled = true;
     if (kind === 'newpw') return Cloud.setPassword(pw).then(function () { toast('Mot de passe enregistré.'); afterLogin(); }, fail);
     if (kind === 'space') return createSpace(g('name').trim(), (f.querySelector('[name=from]:checked') || {}).value).catch(fail);
-    (kind === 'signup' ? Cloud.signUp(email, pw, name) : Cloud.signIn(email, pw)).then(afterLogin, fail);
+    (kind === 'signup' ? Cloud.signUp(email, pw, name, phone) : Cloud.signIn(email, pw)).then(afterLogin, fail);
   }
   function afterLogin() {
     lsDel(KEY + '_mode');
+    ensureProfile();
     return loadInvite().then(function () {
       if (CL.invite && inviteOk()) {
         return Cloud.acceptInvite(CL.invite, Cloud.displayName()).then(function (sid) {
@@ -3322,9 +3637,12 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
   function loadPeople(force) {
     if (!ON.on || !isOrg() || (!force && Date.now() - ON.memAt < 5000)) return;
     ON.memAt = Date.now();
-    Promise.all([Cloud.members(), Cloud.invites(), Cloud.teamMembers().catch(function () { return null; })]).then(function (a) {
-      ON.mem = a[0]; ON.inv = a[1]; ON.mt = a[2];
+    Promise.all([Cloud.members(), Cloud.invites(), Cloud.teamMembers().catch(function () { return null; }), Cloud.directory(B.id).catch(function () { return []; })]).then(function (a) {
+      ON.mem = a[0]; ON.inv = a[1]; ON.mt = a[2]; ON.dir = a[3];
       var el = $('#cl-people'); if (el) el.innerHTML = peopleHtml();
+      var ev = curEv(), r = $('#cl-roles'), n = $('#cl-notify');
+      if (r && ev && safeNow()) r.innerHTML = rolesHtml(ev);
+      if (n && ev && safeNow()) n.innerHTML = notifyHtml(ev);
     }).catch(function (e) { var el = $('#cl-people'); if (el) el.innerHTML = '<p class="cl-err">' + esc(Cloud.frErr(e)) + '</p>'; });
   }
   function peopleHtml() {
@@ -3380,10 +3698,11 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
   function cloudCards() {
     var u = Cloud.user() || {};
     var h = '<div class="card"><h2>Compte et espace en ligne</h2><p>Connecté(e) : <b>' + esc(Cloud.displayName()) + '</b> · ' + esc(u.email || '') + '</p>' +
-      (isOrg() ? '<div class="f-row mt"><label for="cl-spname">Nom de l\'espace</label><input id="cl-spname" data-chg="cl-spname" value="' + esc(ON.space.name || '') + '"></div><p class="small muted">Vous êtes <b>organisateur</b>. Ce nom apparaît chez tout le monde et dans les invitations.</p>'
+      '<div class="f-row mt"><label for="cl-phone">Mon numéro WhatsApp</label><input id="cl-phone" type="tel" inputmode="tel" data-chg="cl-phone" value="' + esc((ON.prof && ON.prof.phone) || '') + '" placeholder="ex. +49 170 1234567"></div><p class="small muted">Visible par les inscrits, pour que les organisateurs puissent vous prévenir.</p>' +
+      (isOrg() && ON.space.kind !== 'event' ? '<div class="f-row mt"><label for="cl-spname">Nom de l\'espace</label><input id="cl-spname" data-chg="cl-spname" value="' + esc(ON.space.name || '') + '"></div><p class="small muted">Vous êtes <b>organisateur</b>. Ce nom apparaît chez tout le monde et dans les invitations.</p>'
         : '<p class="mt">Espace : <b>' + esc(ON.space.name || '') + '</b> · vous êtes <b>' + esc(roleName().toLowerCase()) + '</b></p>') +
       '<p class="small muted mt">Chaque modification est enregistrée en ligne et apparaît tout de suite chez les autres. Sans internet, l\'application continue de marcher et envoie les changements au retour du réseau.</p>' +
-      '<div class="m-actions">' + btn('Changer d\'espace', 'cl-switch', '') + btn('Se déconnecter', 'cl-logout', 'btn-ghost') + '</div></div>';
+      '<div class="m-actions">' + btn('Mes événements', 'go', '', ' data-v="home"') + btn('Se déconnecter', 'cl-logout', 'btn-ghost') + '</div></div>';
     return h;
   }
   function peopleCard() {
@@ -3422,13 +3741,58 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
       if (!confirm('Retirer ' + el.getAttribute('data-n') + ' de l\'espace ? Cette personne ne verra plus rien.')) return;
       Cloud.removeMember(el.getAttribute('data-u')).then(function () { loadPeople(true); toast('Personne retirée.'); }, function (e) { toast(Cloud.frErr(e)); });
     },
-    'cl-wa': function (el) { wa(el.getAttribute('data-t')); },
+    'cl-wa': function (el) { wa(el.getAttribute('data-t'), el.getAttribute('data-p')); },
+    'cl-import': function () { importLocal(); },
+    'ev-yes': function (el) { answerEvent(el.getAttribute('data-id'), 'yes'); },
+    'ev-no': function (el) { if (confirm('Vous ne pouvez pas servir pour cet événement ? L\'organisateur sera prévenu.')) answerEvent(el.getAttribute('data-id'), 'no'); },
+    'ev-seen': function () { var mx = (ON.ans || []).reduce(function (m, a) { return a.answered_at && a.answered_at > m ? a.answered_at : m; }, lsGet(KEY + '_ansSeen') || ''); lsSet(KEY + '_ansSeen', mx); var el = $('#cl-list') || $('#ev-list'); if (el) el.innerHTML = eventsListHtml(ON.list || []); },
+    'prof-save': function () {
+      var v = ($('#prof-phone') || {}).value || '';
+      if (v.replace(/\D/g, '').length < 7) { toast('Entrez votre numéro avec l\'indicatif du pays (ex. +49…).'); return; }
+      Cloud.saveProfile(B.id, (ON.prof && ON.prof.name) || Cloud.displayName(), v.trim()).then(function () { ON.prof = { name: (ON.prof && ON.prof.name) || Cloud.displayName(), phone: v.trim() }; toast('Numéro enregistré.'); var el = $('#cl-list') || $('#ev-list'); if (el) el.innerHTML = eventsListHtml(ON.list || []); if (ui.view === 'settings') render(); }, function (e) { toast(Cloud.frErr(e)); });
+    },
+    'roles-del': function (el) {
+      var u = el.getAttribute('data-u'), c = el.getAttribute('data-c'), m = (ON.mem || []).filter(function (x) { return x.user_id === u; })[0];
+      var left = (ON.mt || []).filter(function (x) { return x.user_id === u && x.cat_id !== c; }).length;
+      teamUnfill(c, u);
+      rolesDone(Cloud.removeTeam(u, c).then(function () { return !left && m && m.role !== 'org' ? Cloud.removeMember(u) : syncMember(u); }), left || (m && m.role === 'org') ? 'Retiré(e) de l\'équipe.' : 'Retiré(e) de l\'événement.');
+    },
+    'roles-pub': function (el) {
+      el.disabled = true;
+      Cloud.publish().then(function (n) { toast((n || 0) + ' personne(s) voient maintenant l\'événement. Prévenez-les sur WhatsApp.'); ON.memAt = 0; ON.list = null; go('notify'); }, function (e) { el.disabled = false; toast(Cloud.frErr(e)); });
+    },
     'cl-copy': function (el) {
       var l = el.getAttribute('data-l');
       (navigator.clipboard ? navigator.clipboard.writeText(l) : Promise.reject()).then(function () { toast('Lien copié.'); }, function () { window.prompt('Copiez ce lien :', l); });
     }
   });
   Object.assign(CHG, {
+    'roles-add': function (el) {
+      var u = el.value, c = el.getAttribute('data-c'), t = teamByCat(curEv(), c);
+      if (!u) return 'norender';
+      var known = (ON.mem || []).some(function (m) { return m.user_id === u; });
+      teamFill(c, u, 'member');
+      rolesDone((known ? Promise.resolve() : Cloud.addPerson(u, personName(u), 'member')).then(function () { return Cloud.setTeam(u, c, 'member', t ? t.name : ''); }).then(function () { return syncMember(u); }), personName(u) + ' ajouté(e) à « ' + (t ? t.name : '') + ' » comme membre.');
+      return 'norender';
+    },
+    'roles-role': function (el) {
+      var u = el.getAttribute('data-u'), c = el.getAttribute('data-c'), r = el.value, t = teamByCat(curEv(), c);
+      teamFill(c, u, r);
+      rolesDone(Cloud.setTeam(u, c, r, t ? t.name : '').then(function () { return syncMember(u); }), personName(u) + ' : ' + (r === 'lead' ? 'chef' : 'membre') + ' de « ' + (t ? t.name : '') + ' ».');
+      return 'norender';
+    },
+    'roles-org': function (el) {
+      var u = el.value; if (!u) return 'norender';
+      var known = (ON.mem || []).some(function (m) { return m.user_id === u; });
+      rolesDone((known ? Cloud.setMember(u, { role: 'org' }) : Cloud.addPerson(u, personName(u), 'org')), personName(u) + ' sera co-organisateur.');
+      return 'norender';
+    },
+    'cl-phone': function (el) {
+      var v = el.value.trim();
+      if (v && v.replace(/\D/g, '').length < 7) { toast('Entrez votre numéro avec l\'indicatif du pays (ex. +49…).'); return 'norender'; }
+      Cloud.saveProfile(B.id, (ON.prof && ON.prof.name) || Cloud.displayName(), v).then(function () { ON.prof = { name: (ON.prof && ON.prof.name) || Cloud.displayName(), phone: v }; toast('Numéro WhatsApp enregistré.'); }, function (e) { toast(Cloud.frErr(e)); });
+      return 'norender';
+    },
     'cl-spname': function (el) {
       var n = el.value.trim(); if (!n || n === ON.space.name) return 'norender';
       Cloud.updateSpace({ name: n }).then(function () { ON.space.name = n; saveCache(); setStatus(ON.status); toast('Nom de l\'espace changé.'); }, function (e) { toast(Cloud.frErr(e)); });
