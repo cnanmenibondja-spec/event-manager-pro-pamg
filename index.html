@@ -820,13 +820,13 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
   window.Cloud = Cloud;
 })();
 </script>
-<script>/* Event Manager Pro v5.0 — chacun organise ses événements (annuaire, répartition des rôles, réponses), bouton Installer, plusieurs équipes par personne, s'installe comme une application, en ligne (comptes, invitations, synchronisation), réunions, équipes habituelles, missions, OK des chefs (avec réserve), budget par équipe, jour J, bilan.
+<script>/* Event Manager Pro v5.1 — chacun organise ses événements (annuaire, répartition des rôles, réponses), bouton Installer, plusieurs équipes par personne, s'installe comme une application, en ligne (comptes, invitations, synchronisation), réunions, équipes habituelles, missions, OK des chefs (avec réserve), budget par équipe, jour J, bilan.
    Sans compte, les données restent dans ce navigateur (localStorage) ; avec un compte, elles sont partagées en ligne (Supabase). */
 (function () {
   'use strict';
 
   var B = window.BRAND || {};
-  var APP_VERSION = '5.0';
+  var APP_VERSION = '5.1';
   var KEY = B.storageKey || 'emp_v2';
 
   /* ---------- Outils ---------- */
@@ -3834,10 +3834,13 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
   function installHelp() {
     var ua = navigator.userAgent, h;
     if (isIOS) h = '<b>iPhone / iPad :</b> ouvrez cette page dans <b>Safari</b>, touchez <b>Partager</b> (le carré avec une flèche vers le haut), puis <b>« Sur l\'écran d\'accueil »</b> et <b>Ajouter</b>.';
-    else if (isMacSafari) h = '<b>Mac avec Safari :</b> dans la barre de menus tout en haut de l\'écran, cliquez sur <b>Fichier</b> puis <b>« Ajouter au Dock… »</b>, puis <b>Ajouter</b>. L\'icône apparaît dans le Dock et dans le dossier Applications.<br><small>Si « Ajouter au Dock » n\'apparaît pas, mettez à jour macOS (Sonoma ou plus récent) ou utilisez Google Chrome.</small>';
+    else if (isMacSafari) h = '<b>Mac avec Safari :</b> Safari ne laisse pas un site s\'installer tout seul, il faut le faire une fois à la main. Dans la barre de menus tout en haut de l\'écran, cliquez sur <b>Fichier</b> puis <b>« Ajouter au Dock… »</b>, puis <b>Ajouter</b>. L\'icône apparaît dans le Dock et dans le dossier Applications.<br><small>Si « Ajouter au Dock » n\'apparaît pas, mettez à jour macOS (Sonoma ou plus récent) ou utilisez Google Chrome.</small>';
     else if (/Android/.test(ua)) h = '<b>Android :</b> dans <b>Chrome</b>, touchez le menu <b>⋮</b> en haut à droite, puis <b>« Installer l\'application »</b> (ou « Ajouter à l\'écran d\'accueil »).';
+    else if (navigator.brave) h = '<b>Brave :</b> le bouton ne peut pas installer tout seul dans Brave, il faut le faire une fois à la main. Cliquez sur l\'icône <b>Installer</b> (un petit écran avec une flèche) tout à droite dans la barre d\'adresse, puis <b>Installer</b>. Si elle n\'y est pas : menu <b>☰</b> en haut à droite › <b>« Enregistrer et partager »</b> › <b>« Installer la page en tant qu\'application… »</b> (selon la version : <b>« Installer Event Manager… »</b> directement dans le menu). L\'icône apparaît ensuite dans le Dock et le Launchpad.<br><small>Si rien de cela n\'apparaît, désactivez le bouclier Brave (le lion à droite de l\'adresse) pour ce site, rechargez la page et réessayez, ou utilisez Safari (Fichier › « Ajouter au Dock… ») ou Google Chrome.</small>';
+    else if (/Macintosh/.test(ua) && /Chrome/.test(ua) && !/Edg|OPR/.test(ua)) h = '<b>Mac avec Google Chrome :</b> cliquez sur l\'icône <b>Installer</b> (un petit écran avec une flèche) tout à droite dans la barre d\'adresse, puis <b>Installer</b>. Sinon : menu <b>⋮</b> en haut à droite › <b>« Caster, enregistrer et partager »</b> › <b>« Installer la page en tant qu\'application… »</b>. L\'icône apparaît dans le Dock et le Launchpad.';
     else if (isFirefox) h = '<b>Firefox</b> ne sait pas installer les applications web sur ordinateur : ouvrez cette page dans <b>Google Chrome</b>, <b>Microsoft Edge</b> ou, sur Mac, <b>Safari</b>.';
     else h = '<b>Ordinateur (Chrome ou Edge) :</b> cliquez sur l\'icône <b>Installer</b> (un petit écran avec une flèche) à droite dans la barre d\'adresse. Sinon : menu <b>⋮</b> › <b>« Enregistrer et partager »</b> (ou « Caster, enregistrer et partager ») › <b>« Installer la page en tant qu\'application… »</b>.';
+    if (!isIOS && !isMacSafari && !isFirefox) h += '<br><small>Si le navigateur propose seulement <b>« Ouvrir dans l\'application »</b>, c\'est qu\'elle est <b>déjà installée</b> sur cet appareil : cherchez l\'icône Event Manager dans le Dock, le Launchpad ou l\'écran d\'accueil. Elle s\'est mise à jour toute seule.</small>';
     return h;
   }
   function installLink() { return canInstall() ? ' · <button class="link-btn" data-act="go" data-v="settings">📲 Installer</button>' : ''; }
@@ -3860,7 +3863,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     if (isStandalone()) { toast('Event Manager Pro est déjà installée : vous l\'utilisez en ce moment comme une application.'); return; }
     if (!deferredInstall) {
       var box = $('#cl-install-help');
-      if (CL.el && !CL.el.hidden && box) { box.hidden = !box.hidden; return; }
+      if (CL.el && !CL.el.hidden && box) { box.hidden = !box.hidden; if (!box.hidden && box.scrollIntoView) box.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
       openForm('Installer l\'application', [{ type: 'note', k: '_n', html: '<p>' + installHelp() + '</p><p class="small muted mt">Une fois installée, Event Manager Pro s\'ouvre depuis son icône, comme une vraie application.</p>' }], {}, function () {}, { saveLabel: 'Fermer' });
       return;
     }
