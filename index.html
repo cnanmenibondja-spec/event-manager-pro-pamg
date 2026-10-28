@@ -875,13 +875,13 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
   window.Cloud = Cloud;
 })();
 </script>
-<script>/* Event Manager Pro v5.5 — chaque nouveau rôle est demandé (oui / non), chacun organise ses événements (annuaire, répartition des rôles, réponses), bouton Installer, plusieurs équipes par personne, s'installe comme une application, en ligne (comptes, invitations, synchronisation), réunions, équipes habituelles, missions, OK des chefs (avec réserve), budget par équipe, jour J, bilan.
+<script>/* Event Manager Pro v5.6 — message WhatsApp qui suit les rôles actuels, chaque nouveau rôle est demandé (oui / non), chacun organise ses événements (annuaire, répartition des rôles, réponses), bouton Installer, plusieurs équipes par personne, s'installe comme une application, en ligne (comptes, invitations, synchronisation), réunions, équipes habituelles, missions, OK des chefs (avec réserve), budget par équipe, jour J, bilan.
    Sans compte, les données restent dans ce navigateur (localStorage) ; avec un compte, elles sont partagées en ligne (Supabase). */
 (function () {
   'use strict';
 
   var B = window.BRAND || {};
-  var APP_VERSION = '5.5';
+  var APP_VERSION = '5.6';
   var KEY = B.storageKey || 'emp_v2';
 
   /* ---------- Outils ---------- */
@@ -3578,11 +3578,26 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     p.then(function () { ON.memAt = 0; loadPeople(true); if (msg) toast(msg); }, function (e) { toast(Cloud.frErr(e)); ON.memAt = 0; loadPeople(true); });
   }
   /* Prévenir l'équipe : un message WhatsApp prêt pour chaque personne choisie, et un pour le groupe. */
-  function notifyText(ev, u) {
-    var ts = (ON.mt || []).filter(function (x) { return x.user_id === u && x.status !== 'draft' && x.answer !== 'no'; }).map(function (x) { var t = teamByCat(ev, x.cat_id); return (x.role === 'lead' ? 'chef' : 'membre') + ' de « ' + (t ? t.name : x.cat_name || 'l\'équipe') + ' »'; });
+  /* Le message suit toujours les rôles actuels : un nouveau rôle en attente est mis en avant, avec un rappel des rôles déjà acceptés. */
+  function notifyParts(ev, u) {
     var m = (ON.mem || []).filter(function (x) { return x.user_id === u; })[0];
-    var what = m && m.role === 'org' ? 'co-organisateur' : ts.join(', ');
-    return 'Bonjour ' + personName(u).split(' ')[0] + ' ! Tu as été choisi(e) pour « ' + ev.name + ' »' + (ev.start ? ' (' + fmtDay(ev.start) + ')' : '') + ' : ' + what + '.\nOuvre Event Manager Pro pour accepter ou dire si tu ne peux pas, et voir tes missions : ' + location.origin + location.pathname;
+    var tx = function (x) { var t = teamByCat(ev, x.cat_id); return (x.role === 'lead' ? 'chef' : 'membre') + ' de « ' + (t ? t.name : x.cat_name || 'l\'équipe') + ' »'; };
+    var rows = (ON.mt || []).filter(function (x) { return x.user_id === u && x.answer !== 'no'; });
+    var ma = m && m.answer;
+    return {
+      m: m,
+      draft: rows.filter(function (x) { return x.status === 'draft'; }).map(tx),
+      pending: rows.filter(function (x) { return rolePending(x, ma); }).map(tx),
+      kept: rows.filter(function (x) { return x.status !== 'draft' && !rolePending(x, ma); }).map(tx)
+    };
+  }
+  function notifyText(ev, u) {
+    var p = notifyParts(ev, u), m = p.m, when = ev.start ? ' (' + fmtDay(ev.start) + ')' : '', link = location.origin + location.pathname;
+    var hi = 'Bonjour ' + personName(u).split(' ')[0] + ' ! ';
+    if (m && m.role === 'org') return hi + 'Tu es co-organisateur de « ' + ev.name + ' »' + when + '.\nOuvre Event Manager Pro pour voir l\'événement : ' + link;
+    if (p.pending.length && m && m.answer) return hi + (p.pending.length > 1 ? 'Nouveaux rôles' : 'Nouveau rôle') + ' pour toi dans « ' + ev.name + ' »' + when + ' : ' + p.pending.join(', ') + '.' +
+      (p.kept.length ? ' Tu restes aussi ' + p.kept.join(', ') + '.' : '') + '\nOuvre Event Manager Pro pour accepter ce nouveau rôle ou dire si tu ne peux pas : ' + link;
+    return hi + 'Tu as été choisi(e) pour « ' + ev.name + ' »' + when + ' : ' + p.pending.concat(p.kept).join(', ') + '.\nOuvre Event Manager Pro pour accepter ou dire si tu ne peux pas, et voir tes missions : ' + link;
   }
   function vNotify(ev) {
     setTimeout(function () { loadPeople(false); }, 0);
@@ -3595,15 +3610,17 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     var c = { yes: 0, no: 0, wait: 0, draft: 0 };
     ppl.forEach(function (m) { if (m.status === 'draft') c.draft++; else if (m.answer === 'yes') c.yes++; else if (m.answer === 'no') c.no++; else c.wait++; });
     var h = '<div class="kpis"><div class="kpi"><b>' + c.yes + '</b><span>ont accepté</span></div><div class="kpi"><b>' + c.no + '</b><span>ne peuvent pas</span></div><div class="kpi"><b>' + c.wait + '</b><span>en attente</span></div><div class="kpi"><b>' + c.draft + '</b><span>en brouillon</span></div></div>';
-    if (c.draft) h += '<div class="card roles-pub mt"><div><b>' + c.draft + ' personne(s) pas encore publiée(s)</b><p class="small">Publiez d\'abord, sinon elles ne verront pas l\'événement.</p></div>' + btn('Publier les rôles', 'roles-pub', 'btn-gold') + '</div>';
+    var rd = (ON.mt || []).filter(function (x) { var m = ppl.filter(function (y) { return y.user_id === x.user_id; })[0]; return x.status === 'draft' && m && m.status !== 'draft'; }).length;
+    if (c.draft || rd) h += '<div class="card roles-pub mt"><div><b>' + [c.draft ? c.draft + ' personne(s) pas encore publiée(s)' : '', rd ? rd + ' nouveau(x) rôle(s) pas encore publié(s)' : ''].filter(Boolean).join(' et ') + '</b><p class="small">Publiez d\'abord : le message WhatsApp contiendra alors le nouveau rôle, et la personne pourra l\'accepter.</p></div>' + btn('Publier les rôles', 'roles-pub', 'btn-gold') + '</div>';
     h += '<div class="card mt"><h2>Message pour chacun</h2>' + ppl.map(function (m) {
       var ph = personPhone(m.user_id), txt = notifyText(ev, m.user_id);
-      var np = m.status !== 'draft' && (ON.mt || []).some(function (x) { return x.user_id === m.user_id && rolePending(x, m.answer); });
-      return '<div class="notify-row"><div><b>' + esc(personName(m.user_id)) + '</b> ' + stChip(m) + (np ? ' <span class="chip warn">⏳ nouveau rôle à confirmer</span>' : '') + '<br><small class="muted">' + esc(txt.split('\n')[0].split(' : ').slice(1).join(' : ')) + (ph ? ' · ' + esc(ph) : ' · pas de numéro') + '</small></div>' +
-        btn('WhatsApp', 'cl-wa', m.status === 'draft' ? 'btn-sm' : 'btn-gold btn-sm', ' data-t="' + esc(txt) + '" data-p="' + esc(ph || '') + '"' + (m.status === 'draft' ? ' disabled title="Publiez d\'abord les rôles"' : '')) + '</div>';
+      var pp = notifyParts(ev, m.user_id), np = m.status !== 'draft' && m.answer && pp.pending.length, wait = m.status === 'draft' || pp.draft.length;
+      var sum = m.role === 'org' ? 'co-organisateur' : np ? 'Nouveau : ' + pp.pending.join(', ') + (pp.kept.length ? ' · déjà : ' + pp.kept.join(', ') : '') : pp.pending.concat(pp.kept).join(', ');
+      return '<div class="notify-row"><div><b>' + esc(personName(m.user_id)) + '</b> ' + stChip(m) + (np ? ' <span class="chip warn">⏳ nouveau rôle à confirmer</span>' : '') + (pp.draft.length && m.status !== 'draft' ? ' <span class="chip">nouveau rôle en brouillon</span>' : '') + '<br><small class="muted">' + esc(sum) + (ph ? ' · ' + esc(ph) : ' · pas de numéro') + '</small></div>' +
+        btn('WhatsApp', 'cl-wa', wait ? 'btn-sm' : 'btn-gold btn-sm', ' data-t="' + esc(txt) + '" data-p="' + esc(ph || '') + '"' + (wait ? ' disabled title="Publiez d\'abord les rôles"' : '')) + '</div>';
     }).join('') + '</div>';
     var grp = 'Bonjour à tous ! Les équipes de « ' + ev.name + ' »' + (ev.start ? ' (' + fmtDay(ev.start) + ')' : '') + ' sont prêtes :\n' + ev.teams.map(function (t) {
-      var rows = (ON.mt || []).filter(function (x) { return x.cat_id === t.catId; });
+      var rows = (ON.mt || []).filter(function (x) { var m = (ON.mem || []).filter(function (y) { return y.user_id === x.user_id; })[0]; return x.cat_id === t.catId && x.status !== 'draft' && x.answer !== 'no' && m && m.status !== 'draft' && m.answer !== 'no'; });
       var ld = rows.filter(function (x) { return x.role === 'lead'; }).map(function (x) { return personName(x.user_id); }), mb = rows.filter(function (x) { return x.role === 'member'; }).map(function (x) { return personName(x.user_id); });
       return '• ' + t.name + (ld.length ? ' : chef ' + ld.join(', ') : '') + (mb.length ? ' ; membres ' + mb.join(', ') : '');
     }).join('\n') + '\nOuvrez Event Manager Pro pour voir votre rôle et répondre : ' + location.origin + location.pathname;
