@@ -183,6 +183,30 @@ h1,h2,h3,.kpi b,.ring-txt b,.mring b,.evdate b,.big-num{font-variant-numeric:lin
 .subs li.done label span{color:var(--green);font-weight:600}
 .subs li small{font-size:12px;color:var(--muted);white-space:nowrap}
 .subs li small.late{color:var(--red);font-weight:600}
+.subs li{flex-wrap:wrap}
+.sub-extra{flex-basis:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;padding-left:29px;font-size:13px;color:var(--ink-2)}
+.sub-resp{display:inline-flex;align-items:center;gap:6px}
+.sub-resp b{color:var(--ink)}
+.sub-resp i{color:var(--muted)}
+.sub-resp select{font:inherit;font-size:13px;padding:3px 8px;border:1px solid var(--line-2);border-radius:8px;background:var(--card);color:var(--ink);max-width:200px}
+.sub-tog{font:inherit;font-size:12.5px;font-weight:600;border:1px solid var(--line-2);background:var(--card);color:var(--ink-2);border-radius:999px;padding:3px 10px;cursor:pointer}
+.sub-tog:hover,.sub-tog.on{border-color:var(--gold);background:var(--gold-soft);color:var(--gold-ink)}
+.sub-thread{flex-basis:100%;margin:8px 0 4px 29px;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.subs li.done .sub-thread{background:var(--card)}
+.cmts{list-style:none;margin:0 0 8px;padding:0}
+.subs .cmts li{display:block;padding:8px 0;border-bottom:1px solid var(--line);background:none;border-radius:0}
+.subs .cmts li:last-child{border-bottom:0}
+.c-head{display:flex;align-items:center;gap:8px;font-size:13px}
+.c-head small{flex:1}
+.cmts p{margin:4px 0 0;font-size:14px;color:var(--ink);white-space:normal}
+.c-file{display:flex;align-items:center;gap:8px;margin-top:6px;flex-wrap:wrap}
+.c-file .fic{width:32px;height:32px;border-radius:8px;background:var(--gold-soft);color:var(--gold-ink);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;text-transform:uppercase}
+.c-fname{flex:1;min-width:120px;font-size:13.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.add-cmt textarea{width:100%;font:inherit;font-size:14px;border:1px solid var(--line-2);border-radius:10px;padding:8px 10px;background:var(--card);resize:vertical}
+.add-cmt .upload{width:auto;flex:0 0 auto}
+.add-cmt .c-row{display:flex;align-items:center;gap:8px;margin-top:6px;flex-wrap:wrap}
+.c-picked{flex:1;min-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media (max-width:600px){.sub-extra{padding-left:0}.sub-thread{margin-left:0}}
 input[type=checkbox]{width:19px;height:19px;accent-color:var(--green);flex-shrink:0;margin:1px 0 0;cursor:pointer}
 .m-solo{display:flex;gap:10px;align-items:center;margin-top:12px;font-size:14px;color:var(--ink-2);cursor:pointer}
 .add-sub{display:flex;gap:8px;margin-top:10px}
@@ -622,6 +646,14 @@ body.cl-open .modal{z-index:250}
 /* v5.4 : numéro de version bien visible (menu et écran de connexion) */
 .ver-chip{font-style:normal;display:inline-block;align-self:flex-start;margin-top:6px;font-size:11px;font-weight:700;letter-spacing:.03em;color:var(--navy);background:var(--gold);border-radius:999px;padding:2px 9px;line-height:1.4}
 .cl-brand .ver-chip{display:table;margin-top:5px}
+/* v5.7 : guide « Comment ça marche » */
+.guide .g-item{border-top:1px solid var(--line)}
+.guide .g-item:first-of-type{border-top:0}
+.guide summary{cursor:pointer;font-weight:700;font-size:15px;padding:11px 2px;list-style-position:outside;color:var(--ink)}
+.guide summary:hover{color:var(--gold-ink)}
+.guide summary:focus-visible{outline:2px solid var(--gold);outline-offset:2px;border-radius:6px}
+.guide .g-item ul{margin:0 0 12px;padding-left:22px;font-size:14px;color:var(--ink-2);display:grid;gap:6px;max-width:75ch}
+.guide .g-item b{color:var(--ink)}
 </style>
 </head>
 <body>
@@ -881,7 +913,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
   'use strict';
 
   var B = window.BRAND || {};
-  var APP_VERSION = '5.6';
+  var APP_VERSION = '5.7';
   var KEY = B.storageKey || 'emp_v2';
 
   /* ---------- Outils ---------- */
@@ -1015,7 +1047,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
       place: o.place || '', expected: Number(o.expected) || 0, budget: Number(o.budget) || 0,
       okDeadline: o.okDeadline || addDays(o.start || today(), -2), description: o.description || '', organizer: o.organizer || '',
       paypal: o.paypal || '', goal: Number(o.goal) || 0,
-      teams: [], missions: [], program: [], expenses: [], contributions: [], participants: [], incidents: [], checkins: {}, log: [], files: [],
+      teams: [], missions: [], program: [], expenses: [], contributions: [], participants: [], incidents: [], checkins: {}, log: [], files: [], comments: [],
       debrief: { good: '', improve: '', decisions: '' }, meetings: [], createdAt: new Date().toISOString()
     };
   }
@@ -1143,6 +1175,15 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     L(24, 'Elsie (Louange & Modération)', 'a envoyé son OK : tout est prêt.');
     L(30, 'Lumata (Communication & Média)', 'a coché « Créer le flyer ».');
     L(50, 'Cedric (organisateur)', 'a créé l\'événement et attribué les missions aux équipes.');
+    // v5.7 : responsables et commentaires sur les tâches du flyer
+    var fm = ev.missions.filter(function (m) { return m.title === 'Flyer et lien d\'inscription'; })[0];
+    if (fm) {
+      var ft = ev.teams.filter(function (x) { return x.id === fm.teamId; })[0], nm = teamNames(ft);
+      fm.subtasks.forEach(function (s, i) { s.who = nm[i % Math.max(nm.length, 1)] || ''; });
+      var C = function (h, i, who, text) { ev.comments.push({ id: uid('cm'), subId: fm.subtasks[i].id, missionId: fm.id, teamId: fm.teamId, text: text, by: who, at: new Date(Date.now() - h * 3600000).toISOString() }); };
+      C(32, 0, (nm[0] || 'Chef') + ' (' + ft.name + ')', 'Première version prête : fond bleu, logo en haut, date et adresse en gros. Je dépose le fichier dès que les photos sont validées.');
+      C(30, 0, 'Un membre (' + ft.name + ')', 'Super ! Pensez à ajouter le QR code du lien d\'inscription en bas à droite.');
+    }
     // Réunions : une passée avec compte rendu, une à venir avec les chefs
     var now = new Date().toISOString();
     ev.meetings.push({ id: uid('mt'), title: 'Réunion de lancement', date: addDays(t, -6), time: '19:30', end: '20:30', place: '', link: 'https://chat.whatsapp.com/', agenda: 'Présentation du programme\nRôle de chaque équipe\nBudget et cagnotte',
@@ -1186,7 +1227,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     var byName = function (n) { n = String(n || '').trim().toLowerCase(); return s.catalog.filter(function (c) { return c.name.trim().toLowerCase() === n; })[0]; };
     var oldTeamId = s.role && s.role.teamId, oldCat = null;
     s.events.slice().sort(function (a, b) { return (b.start || '') < (a.start || '') ? -1 : 1; }).forEach(function (e) {
-      e.files = e.files || []; e.meetings = e.meetings || []; e.paypal = e.paypal || ''; e.goal = Number(e.goal) || 0;
+      e.files = e.files || []; e.comments = e.comments || []; e.meetings = e.meetings || []; e.paypal = e.paypal || ''; e.goal = Number(e.goal) || 0;
       (e.log || []).forEach(function (l) { if (!l.id) l.id = uid('l'); });
       e.missions.forEach(normMission);
       e.teams.forEach(function (t) {
@@ -1208,7 +1249,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
   }
 
   /* ---------- État ---------- */
-  var state, ui = { view: null, teamId: null, open: {}, mFilter: 'all', liveDay: null, liveTime: null, evOpen: false };
+  var state, ui = { view: null, teamId: null, open: {}, openSub: {}, mFilter: 'all', liveDay: null, liveTime: null, evOpen: false };
   var EV_VIEWS = ['dash', 'teams', 'team', 'myteam', 'missions', 'program', 'meetings', 'budget', 'people', 'live', 'debrief', 'roles', 'notify'];
   function seed() { var ev = demoEvent(); return migrate({ v: 2, eventId: ev.id, role: { kind: 'org' }, orgName: 'Cedric', events: [ev], catalog: [] }); }
   function load() {
@@ -1776,6 +1817,39 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     return h + '</div>';
   }
 
+  /* ---------- Tâche : responsable, commentaires et fichiers (v5.7) ---------- */
+  var subComments = function (ev, sid) { return (ev.comments || []).filter(function (c) { return c.subId === sid; }); };
+  function subExtra(ev, m, s, edit, tick) {
+    var cs = subComments(ev, s.id), nf = cs.filter(function (c) { return c.fileId; }).length, open = !!ui.openSub[s.id];
+    var h = '<div class="sub-extra"><span class="sub-resp">👤 Responsable : ';
+    if (edit) {
+      var names = teamNames(teamOf(ev, m.teamId));
+      if (s.who && names.indexOf(s.who) < 0) names.push(s.who);
+      h += '<select data-chg="sub-who" data-m="' + m.id + '" data-s="' + s.id + '" aria-label="Responsable de la tâche"><option value="">— à choisir —</option>' +
+        names.map(function (n) { return '<option' + (n === s.who ? ' selected' : '') + '>' + esc(n) + '</option>'; }).join('') + '</select>';
+    } else h += s.who ? '<b>' + esc(s.who) + '</b>' : '<i>pas encore choisi</i>';
+    h += '</span><button type="button" class="sub-tog' + (open ? ' on' : '') + '" data-act="sub-thread" data-s="' + s.id + '" aria-expanded="' + open + '">💬 ' + (cs.length ? cs.length + ' commentaire' + (cs.length > 1 ? 's' : '') : 'Commenter') + (nf ? ' · 📎 ' + nf : '') + '</button></div>';
+    if (open) h += subThread(ev, m, s, cs, edit, tick);
+    return h;
+  }
+  function subThread(ev, m, s, cs, edit, tick) {
+    var me = actor(ev);
+    var h = '<div class="sub-thread">';
+    if (!cs.length) h += '<p class="muted small">Pas encore de commentaire. ' + (tick ? 'Écrivez où en est le travail ou déposez le fichier (flyer, devis, photo…).' : '') + '</p>';
+    else h += '<ul class="cmts">' + cs.slice().sort(function (a, b) { return a.at < b.at ? -1 : 1; }).map(function (c) {
+      var f = c.fileId && (ev.files || []).filter(function (x) { return x.id === c.fileId; })[0];
+      var ext = f ? fileExt(f.name) : '', viewable = /^(pdf|png|jpe?g|gif|webp|mp4|mov|txt)$/.test(ext);
+      return '<li><div class="c-head"><b>' + esc(c.by || '—') + '</b><small>' + fmtStamp(c.at) + '</small>' +
+        ((edit || c.by === me) ? '<button class="icon-btn" data-act="cmt-del" data-id="' + c.id + '" aria-label="Supprimer le commentaire" title="Supprimer le commentaire">🗑</button>' : '') + '</div>' +
+        (c.text ? '<p>' + esc(c.text).replace(/\n/g, '<br>') + '</p>' : '') +
+        (c.fileId ? '<div class="c-file"><span class="fic">' + esc((ext || 'fic').slice(0, 4)) + '</span><span class="c-fname" title="' + esc(c.fileName || '') + '">' + esc(c.fileName || 'Fichier') + (f ? ' <small>' + fmtSize(f.size) + '</small>' : ' <small>(supprimé)</small>') + '</span>' +
+          (f ? (viewable ? btn('Ouvrir', 'file-open', 'btn-sm', ' data-id="' + f.id + '"') : '') + btn('⬇ Télécharger', 'file-dl', 'btn-sm', ' data-id="' + f.id + '"') : '') + '</div>' : '') + '</li>';
+    }).join('') + '</ul>';
+    if (tick) h += '<form class="add-cmt" data-form="add-cmt" data-m="' + m.id + '" data-s="' + s.id + '"><textarea name="text" rows="2" placeholder="Votre commentaire sur « ' + esc(s.title) + ' »…" aria-label="Commentaire"></textarea>' +
+      '<div class="c-row"><label class="btn btn-sm upload">📎 Joindre un fichier<input type="file" name="file" data-chg="cmt-file"></label><span class="c-picked muted small"></span><button class="btn btn-primary btn-sm" type="submit">Publier</button></div></form>';
+    return h + '</div>';
+  }
+
   function missionCard(ev, m, showTeam) {
     var p = mProg(m), edit = canEditTeam(m.teamId), tick = canTick(m.teamId), t = today();
     var h = '<article class="mission' + (p >= 100 ? ' is-done' : '') + '" id="mis-' + m.id + '"><div class="m-head"><div><h3>' + esc(m.title) + '</h3><div class="m-meta">' +
@@ -1786,8 +1860,8 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     if (m.subtasks.length) {
       h += '<ul class="subs">' + m.subtasks.map(function (s) {
         return '<li class="' + (s.done ? 'done' : '') + '"><label><input type="checkbox" data-chg="sub" data-m="' + m.id + '" data-s="' + s.id + '"' + (s.done ? ' checked' : '') + (tick ? '' : ' disabled') + '><span>' + esc(s.title) + '</span></label>' +
-          (s.who ? '<small>' + esc(s.who) + '</small>' : '') + (s.due ? '<small class="' + (!s.done && s.due < t ? 'late' : '') + '">' + fmtDate(s.due) + '</small>' : '') +
-          (edit ? '<span class="sub-tools"><button class="icon-btn" data-act="edit-sub" data-m="' + m.id + '" data-s="' + s.id + '" aria-label="Modifier la tâche" title="Modifier la tâche">✎</button><button class="icon-btn danger" data-act="del-sub" data-m="' + m.id + '" data-s="' + s.id + '" aria-label="Supprimer la tâche" title="Supprimer la tâche">✕</button></span>' : '') + '</li>';
+          (s.due ? '<small class="' + (!s.done && s.due < t ? 'late' : '') + '">' + fmtDate(s.due) + '</small>' : '') +
+          (edit ? '<span class="sub-tools"><button class="icon-btn" data-act="edit-sub" data-m="' + m.id + '" data-s="' + s.id + '" aria-label="Modifier la tâche" title="Modifier la tâche">✎</button><button class="icon-btn danger" data-act="del-sub" data-m="' + m.id + '" data-s="' + s.id + '" aria-label="Supprimer la tâche" title="Supprimer la tâche">✕</button></span>' : '') + subExtra(ev, m, s, edit, tick) + '</li>';
       }).join('') + '</ul>';
     } else {
       h += '<label class="m-solo"><input type="checkbox" data-chg="mdone" data-m="' + m.id + '"' + (m.done ? ' checked' : '') + (tick ? '' : ' disabled') + '> Mission faite (elle n\'a pas encore de tâches)</label>';
@@ -2141,19 +2215,96 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     return h;
   }
 
+  /* ---------- Guide complet « Comment ça marche » (v5.7) ---------- */
+  var GUIDE = [
+    ['start', '🚀 Pour commencer', [
+      'Créez votre compte avec votre nom, votre e-mail, un mot de passe et votre <b>numéro WhatsApp</b>. Le numéro sert à vous prévenir quand on vous donne un rôle.',
+      'Installez l\'application sur votre téléphone et votre ordinateur : bouton <b>« 📲 Installer l\'application »</b> (menu de gauche ou haut de l\'écran). Avec Safari ou Brave, suivez les gestes affichés : ces navigateurs n\'installent pas en un seul clic.',
+      'La pastille dorée sous le logo montre la <b>version</b> utilisée. Quand une nouvelle version arrive, fermez puis rouvrez l\'application.',
+      'L\'écran d\'accueil <b>« Mes événements »</b> montre vos invitations, les réponses reçues et tous vos événements.'
+    ]],
+    ['roles', '👥 Les rôles', [
+      '<b>L\'organisateur</b> crée l\'événement. Il voit et modifie tout : équipes, missions, budget, participants, programme. Il peut nommer des co-organisateurs.',
+      '<b>Le chef d\'équipe</b> voit son équipe, le programme, les réunions et le jour J. Il découpe ses missions en tâches, choisit le responsable de chaque tâche, gère ses membres, demande un budget et note ses achats.',
+      '<b>Le membre</b> voit les missions et les tâches de son équipe, sans les montants. Il coche les tâches faites, commente et dépose des fichiers.',
+      'Une même personne peut être dans <b>plusieurs équipes</b> (chef ici, membre là). Elle choisit l\'équipe affichée en haut à gauche, dans « Mes équipes ».'
+    ]],
+    ['event', '📅 Créer un événement', [
+      'Dans « Mes événements », cliquez sur <b>« + Nouvel événement »</b> : nom, dates, lieu, nombre de personnes attendues, budget.',
+      'Les équipes, les chefs et les membres du dernier événement sont repris tout seuls, en brouillon. Vous gardez ou changez ce que vous voulez.',
+      '<b>Équipes habituelles</b> : vos équipes de service d\'un événement à l\'autre. Changer une équipe dans un événement ne change pas cette liste.',
+      'Après l\'événement, <b>« Réutiliser pour un prochain événement »</b> (dans le Bilan) en fait un modèle.'
+    ]],
+    ['assign', '🧩 Répartition des rôles et réponses', [
+      'Dans <b>« Répartition des rôles »</b>, choisissez pour chaque équipe un chef et des membres parmi les personnes inscrites.',
+      'Tout reste <b>en brouillon</b> jusqu\'à ce que vous cliquiez sur <b>« Publier les rôles »</b>. Personne ne voit rien avant.',
+      'Après publication, chaque personne voit <b>« Nouveau rôle pour vous »</b> et répond <b>« J\'accepte »</b> ou <b>« Je ne peux pas »</b>, rôle par rôle. Un nouveau rôle donné plus tard est aussi demandé.',
+      'Tant qu\'un rôle n\'est pas accepté, il ne donne aucun accès. Refuser un rôle ne retire pas les autres.',
+      'Vous êtes prévenu de chaque réponse dans « Mes événements ». À côté de chaque nom, la répartition montre : accepté, refusé ou en attente.'
+    ]],
+    ['notify', '💬 Prévenir l\'équipe (WhatsApp)', [
+      '<b>« Prévenir l\'équipe »</b> prépare un message WhatsApp pour chaque personne, avec ses rôles actuels, et un message pour le groupe.',
+      'Si un nouveau rôle est encore en brouillon, le bouton de la personne attend : publiez d\'abord les rôles.',
+      'Les vraies notifications sur le téléphone viendront plus tard. Pour l\'instant, on prévient par WhatsApp.'
+    ]],
+    ['missions', '✅ Missions et tâches', [
+      'L\'organisateur attribue une <b>mission</b> à une équipe (titre, date limite, priorité, budget demandé). Le chef la découpe en <b>tâches</b>.',
+      'Chaque membre de l\'équipe coche une tâche quand elle est faite. Le pourcentage de la mission et de l\'équipe avance tout seul.',
+      'Le chef peut poser une <b>question à l\'organisateur</b> sur une mission. La réponse s\'affiche juste en dessous.',
+      'L\'organisateur peut envoyer une mission au chef par WhatsApp.',
+      'Dans « Missions & tâches », les filtres montrent les missions en retard, pas encore découpées, avec une question ouverte ou terminées.'
+    ]],
+    ['tasks', '👤 Responsable, commentaires et fichiers d\'une tâche', [
+      'Sous chaque tâche, <b>« 👤 Responsable »</b> montre qui s\'en occupe. Le chef d\'équipe (ou l\'organisateur) le choisit dans la liste des membres de l\'équipe. C\'est un repère visible par toute l\'équipe : aucun message n\'est envoyé.',
+      'Le bouton <b>« 💬 Commenter »</b> ouvre la discussion de la tâche. Toute l\'équipe peut écrire où en est le travail.',
+      '<b>« 📎 Joindre un fichier »</b> ajoute un document au commentaire (par exemple le flyer pour la tâche « Créer le flyer »). On peut l\'ouvrir ou le télécharger. Il apparaît aussi dans <b>« Présentations & documents »</b> de l\'équipe.',
+      'Le bouton montre le nombre de commentaires et de fichiers (💬 3 · 📎 1). Chacun peut supprimer son propre commentaire ; le chef peut supprimer ceux de son équipe.'
+    ]],
+    ['ok', '🟢 OK des équipes', [
+      'Le <b>OK vert</b> du chef n\'est possible qu\'à 100 % des tâches.',
+      'Avant, le chef peut envoyer un <b>OK avec réserve</b> : pour chaque tâche pas finie, il écrit pourquoi et la solution. L\'organisateur l\'accepte ou le refuse.',
+      'Si une tâche est décochée ou ajoutée après le OK, le OK est retiré.',
+      'Le <b>feu vert</b> de l\'événement s\'allume quand toutes les équipes ont un OK validé.'
+    ]],
+    ['budget', '💶 Budget et finances', [
+      'Chaque équipe <b>demande un montant</b> pour ses missions, avec une date. L\'organisateur <b>accorde</b> le montant.',
+      'Le chef note ses <b>achats</b> avec la photo du ticket. L\'organisateur coche les remboursements.',
+      'Les <b>dons</b> et promesses sont suivis, avec un objectif et un lien de cagnotte PayPal.',
+      'Les membres ne voient pas les montants. Une équipe passe au vert quand son chef a terminé ses comptes.'
+    ]],
+    ['meetings', '🗓️ Réunions', [
+      'L\'organisateur (ou un chef pour son équipe) prévoit une réunion : date, heure, lieu ou lien, ordre du jour, invités.',
+      'On l\'envoie par WhatsApp. Chacun répond <b>« ✓ Je viens »</b> ou <b>« ✕ Je ne viens pas »</b>.',
+      'Après la réunion, on écrit le <b>compte rendu</b> et on ajoute les tâches décidées aux missions.'
+    ]],
+    ['program', '⏱️ Programme et participants', [
+      'Le <b>Programme</b> donne chaque moment de l\'événement, jour par jour, avec l\'équipe responsable.',
+      '<b>Participants</b> (organisateur) : qui vient, qui a invité qui, qui est inscrit, et qui était présent chaque jour.'
+    ]],
+    ['live', '🎤 Le jour J et le bilan', [
+      '<b>« Jour J — en direct »</b> montre le moment en cours et le suivant.',
+      'Tout le monde peut <b>signaler un problème</b> (son, retard, repas…). Des problèmes fréquents sont proposés avec l\'action conseillée. On suit chaque problème jusqu\'à « résolu ».',
+      'Après l\'événement, le <b>Bilan</b> garde ce qui a bien marché, ce qu\'il faut améliorer et les décisions pour la prochaine fois.'
+    ]],
+    ['online', '🔄 En ligne, sur plusieurs appareils', [
+      'Avec un compte, tout le monde voit les changements <b>en direct</b>, sur tous ses appareils.',
+      'Sans réseau, l\'application garde une copie sur l\'appareil et envoie les changements dès que la connexion revient.',
+      'Les deux éditions (Event Manager Pro et Pray and Move) sont séparées : chacune a ses propres comptes et ses propres événements.',
+      'Dans « Aide & réglages », <b>« Télécharger une sauvegarde »</b> garde une copie des données dans un fichier.'
+    ]]
+  ];
+  function guideCard() {
+    var first = isOrg() ? 'start' : 'tasks';
+    return '<div class="card guide"><h2>Comment ça marche</h2><p class="small muted" style="margin:-6px 0 10px">Le guide complet. Cliquez sur un sujet pour l\'ouvrir.</p>' + GUIDE.map(function (g) {
+      return '<details class="g-item"' + (g[0] === first ? ' open' : '') + '><summary>' + g[1] + '</summary><ul>' + g[2].map(function (li) { return '<li>' + li + '</li>'; }).join('') + '</ul></details>';
+    }).join('') + (ON.on ? '' : '<details class="g-item"><summary>🎭 Essayer un autre rôle</summary><ul><li>Pour voir l\'application comme un chef ou un membre, choisissez-le en haut à gauche dans <b>« Je suis »</b>.' + (state.orgPin ? ' Pour revenir en organisateur, il faut le code organisateur.' : '') + '</li></ul></details>') + '</div>';
+  }
+
   /* ---------- Vue : aide et réglages ---------- */
   function vSettings(ev) {
     var h = vhead('Aide & réglages', 'Comment l\'application fonctionne, et vos sauvegardes.');
     var ic = installCard(); if (ic) h += ic;
-    h += '<div class="grid g2"><div class="card"><h2>Comment ça marche</h2><div class="info-box"><ul style="margin:0">' +
-      '<li><b>L\'organisateur général</b> voit et modifie tout. Lui seul crée, modifie ou supprime un événement, choisit les équipes qui participent et nomme les chefs.</li>' +
-      '<li><b>Chaque chef d\'équipe</b> voit son équipe, le programme et le jour J. Il ajoute des missions et des tâches, gère ses membres, demande un budget et note ses achats.</li>' +
-      '<li><b>Les membres</b> voient leur équipe et cochent leurs tâches.</li>' +
-      '<li><b>Réunions</b> : l\'organisateur (ou un chef pour son équipe) prévoit une réunion, l\'envoie par WhatsApp, chacun répond « je viens » ou « je ne viens pas », puis on écrit le compte rendu et on ajoute les tâches décidées aux missions.</li>' +
-      '<li>Le <b>OK vert</b> du chef n\'est possible qu\'à 100 %. Avant, il peut envoyer un <b>OK avec réserve</b> (pourquoi + solution pour chaque tâche) que l\'organisateur accepte ou refuse. Feu vert quand toutes les équipes ont un OK validé.</li>' +
-      '<li>Le jour J, l\'écran <b>« Jour J — en direct »</b> montre le moment en cours, le suivant, et les problèmes avec leur correction.</li>' +
-      '<li>Après, le <b>Bilan</b> garde les leçons, et on peut réutiliser l\'événement comme modèle.</li></ul></div>' +
-      (ON.on ? '' : '<p class="mt small muted">Pour essayer le rôle d\'un chef ou d\'un membre, choisissez-le en haut à gauche dans « Je suis ».' + (state.orgPin ? ' Pour revenir en organisateur, il faut le code organisateur.' : '') + '</p>') + '</div>';
+    h += '<div class="grid g2">' + guideCard();
     if (ON.on) h += cloudCards() + '</div>';
     else if (Cloud.configured()) h += '<div class="card"><h2>Travailler à plusieurs</h2><div class="tip">Vous travaillez <b>sans compte</b> : les données restent sur cet appareil.<br><br>Connectez-vous pour partager l\'événement en ligne : chaque chef a son compte, voit son équipe, et tout le monde voit les changements en direct.</div><div class="m-actions">' + btn('Se connecter', 'cl-login', 'btn-gold') + '</div></div></div>';
     else h += '<div class="card"><h2>Important : plusieurs téléphones</h2><div class="tip">Pour l\'instant, les données restent <b>sur cet appareil</b>. Si un chef coche une tâche sur son téléphone, l\'organisateur ne le voit pas encore sur le sien.<br><br>' +
@@ -2382,7 +2533,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
       }
     }, m ? { onDelete: function () {
       if (!confirm('Supprimer la mission « ' + m.title + ' » et ses tâches ?')) return false;
-      ev.missions = ev.missions.filter(function (x) { return x.id !== m.id; });
+      ev.missions = ev.missions.filter(function (x) { return x.id !== m.id; }); ev.comments = ev.comments.filter(function (x) { return x.missionId !== m.id; });
       log(ev, 'a supprimé la mission « ' + m.title + ' ».');
     } } : null);
   }
@@ -2414,7 +2565,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     ], s, function (v) {
       var was = s.done; Object.assign(s, v);
       if (was && !s.done) resetOk(ev, m.teamId, 'une tâche a été décochée');
-    }, { onDelete: function () { m.subtasks = m.subtasks.filter(function (x) { return x.id !== s.id; }); } });
+    }, { onDelete: function () { m.subtasks = m.subtasks.filter(function (x) { return x.id !== s.id; }); ev.comments = ev.comments.filter(function (x) { return x.subId !== s.id; }); } });
   }
 
   function teamNames(t) { return t ? [t.lead].concat(t.people.map(function (p) { return p.name; })).filter(Boolean) : []; }
@@ -2600,14 +2751,22 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     'del-mission': function (el, ev) {
       var m = findM(ev, el);
       if (!confirm('Supprimer la mission « ' + m.title + ' » et ses ' + m.subtasks.length + ' tâche(s) ?')) return;
-      ev.missions = ev.missions.filter(function (x) { return x.id !== m.id; });
+      ev.missions = ev.missions.filter(function (x) { return x.id !== m.id; }); ev.comments = ev.comments.filter(function (x) { return x.missionId !== m.id; });
       log(ev, 'a supprimé la mission « ' + m.title + ' ».'); save(); render(); toast('Mission supprimée.');
     },
     'del-sub': function (el, ev) {
       var m = findM(ev, el), s = m.subtasks.filter(function (x) { return x.id === el.getAttribute('data-s'); })[0];
       if (!confirm('Supprimer la tâche « ' + s.title + ' » ?')) return;
       m.subtasks = m.subtasks.filter(function (x) { return x.id !== s.id; });
+      ev.comments = ev.comments.filter(function (x) { return x.subId !== s.id; });
       log(ev, 'a supprimé la tâche « ' + s.title + ' » (' + m.title + ').'); save(); render();
+    },
+    'sub-thread': function (el) { var id = el.getAttribute('data-s'); ui.openSub[id] = !ui.openSub[id]; render(); },
+    'cmt-del': function (el, ev) {
+      var c = ev.comments.filter(function (x) { return x.id === el.getAttribute('data-id'); })[0];
+      if (!c || !confirm('Supprimer ce commentaire' + (c.fileId ? ' ? Le fichier joint reste dans « Présentations & documents ».' : ' ?'))) return;
+      ev.comments = ev.comments.filter(function (x) { return x.id !== c.id; });
+      save(); render(); toast('Commentaire supprimé.');
     },
     'edit-sub': function (el, ev) { var m = findM(ev, el); formSub(ev, m, m.subtasks.filter(function (s) { return s.id === el.getAttribute('data-s'); })[0]); },
     'ask': function (el, ev) {
@@ -2944,6 +3103,17 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
       el.value = '';
       return 'norender';
     },
+    'sub-who': function (el, ev) {
+      var m = findM(ev, el), s = m.subtasks.filter(function (x) { return x.id === el.getAttribute('data-s'); })[0];
+      s.who = el.value;
+      log(ev, s.who ? 'a désigné ' + s.who + ' responsable de « ' + s.title + ' » (' + m.title + ').' : 'a retiré le responsable de « ' + s.title + ' ».');
+      toast(s.who ? s.who + ' est responsable de « ' + s.title + ' ».' : 'Responsable retiré.');
+    },
+    'cmt-file': function (el) {
+      var f = el.files && el.files[0], sp = el.closest('form').querySelector('.c-picked');
+      if (sp) sp.textContent = f ? '📎 ' + f.name : '';
+      return 'norender';
+    },
     'org-name': function (el) { state.orgName = el.value.trim(); return 'norender'; }
   };
 
@@ -2951,8 +3121,8 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
      Les données de l'espace sont découpées en petits éléments (une équipe, une mission, une tâche…).
      Seuls les éléments modifiés sont envoyés ; le serveur vérifie les droits de chacun (organisateur, chef, membre).
      Sans internet, on continue sur la copie de l'appareil ; les changements partent au retour du réseau. */
-  var EV_ARR = ['teams', 'missions', 'program', 'expenses', 'contributions', 'participants', 'incidents', 'checkins', 'log', 'files', 'debrief', 'meetings'];
-  var LIST_KINDS = [['expense', 'expenses'], ['contrib', 'contributions'], ['participant', 'participants'], ['incident', 'incidents'], ['prog', 'program'], ['file', 'files'], ['meeting', 'meetings']];
+  var EV_ARR = ['teams', 'missions', 'program', 'expenses', 'contributions', 'participants', 'incidents', 'checkins', 'log', 'files', 'debrief', 'meetings', 'comments'];
+  var LIST_KINDS = [['expense', 'expenses'], ['contrib', 'contributions'], ['participant', 'participants'], ['incident', 'incidents'], ['prog', 'program'], ['file', 'files'], ['meeting', 'meetings'], ['comment', 'comments']];
   var ROLE_FR = { org: 'organisateur', lead: 'chef d\'équipe', member: 'membre' };
   var noop = function () {};
   function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
@@ -2980,7 +3150,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     if (['core', 'team', 'cat', 'prog', 'checkin', 'incident', 'meeting', 'rsvp'].indexOf(k) >= 0) return true;
     var r = teamRole(c);
     if (!r) return false;
-    if (['mission', 'sub', 'file'].indexOf(k) >= 0) return true;
+    if (['mission', 'sub', 'file', 'comment'].indexOf(k) >= 0) return true;
     return r === 'lead' && ['tfin', 'mfin', 'expense', 'contrib'].indexOf(k) >= 0;
   }
   function cWrite(k, c) {
@@ -2988,8 +3158,8 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     if (['incident', 'rsvp', 'log'].indexOf(k) >= 0) return true;
     if (k === 'meeting' && anyLead()) return true;
     var r = teamRole(c);
-    if (r === 'lead' && ['team', 'tfin', 'mission', 'mfin', 'sub', 'file', 'expense', 'checkin', 'contrib'].indexOf(k) >= 0) return true;
-    return r === 'member' && k === 'sub';
+    if (r === 'lead' && ['team', 'tfin', 'mission', 'mfin', 'sub', 'file', 'comment', 'expense', 'checkin', 'contrib'].indexOf(k) >= 0) return true;
+    return r === 'member' && ['sub', 'comment', 'file'].indexOf(k) >= 0;
   }
   /* Les dons sont rangés avec l'équipe Finances : son chef (trésorier) peut les noter. */
   function finCat(ev) { var t = ev.teams.filter(function (x) { return /financ|tr[ée]sor/i.test(x.name); })[0]; return t ? t.catId : null; }
@@ -3027,7 +3197,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
       });
       LIST_KINDS.forEach(function (p) {
         (ev[p[1]] || []).forEach(function (x, i) {
-          var c = p[0] === 'contrib' ? fc : ['expense', 'file', 'incident'].indexOf(p[0]) >= 0 ? tc(x.teamId) : null;
+          var c = p[0] === 'contrib' ? fc : ['expense', 'file', 'incident', 'comment'].indexOf(p[0]) >= 0 ? tc(x.teamId) : null;
           put(p[0], x.id, ev.id, c, Object.assign(omit(x, p[0] === 'meeting' ? ['rsvp'] : []), { pos: pos(x, i) }));
           if (p[0] === 'meeting') Object.keys(x.rsvp || {}).forEach(function (k) { put('rsvp', x.id + '|' + k, ev.id, null, { m: x.id, k: k, v: x.rsvp[k] }); });
         });
@@ -4094,6 +4264,26 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
       log(ev3, 'a noté un don reçu de ' + who.value.trim() + ' (' + fmtMoney(amount) + ').');
       save(); render(); toast('Don de ' + fmtMoney(amount) + ' noté. Merci !');
       var again3 = document.querySelector('form[data-form="add-contrib"] [name=who]'); if (again3) again3.focus();
+      return;
+    }
+    if (f.getAttribute('data-form') === 'add-cmt') {
+      e.preventDefault();
+      var evc = curEv(), mc = findM(evc, f), sc = mc.subtasks.filter(function (x) { return x.id === f.getAttribute('data-s'); })[0];
+      var ta = f.querySelector('[name=text]'), fi = f.querySelector('[name=file]'), txt = ta.value.trim(), file = fi.files && fi.files[0];
+      if (!txt && !file) { ta.classList.add('is-invalid'); ta.focus(); setTimeout(function () { ta.classList.remove('is-invalid'); }, 1200); return; }
+      if (file && file.size > maxFile()) { toast('« ' + file.name + ' » est trop lourd (plus de ' + Math.round(maxFile() / 1048576) + ' Mo).'); return; }
+      var cm = { id: uid('cm'), subId: sc.id, missionId: mc.id, teamId: mc.teamId, text: txt, by: actor(evc), at: new Date().toISOString() };
+      var post = function () {
+        evc.comments.push(cm); ui.openSub[sc.id] = true;
+        log(evc, (cm.fileId ? 'a déposé « ' + cm.fileName + ' » sur' : 'a commenté') + ' la tâche « ' + sc.title + ' » (' + mc.title + ').');
+        save(); render(); toast(cm.fileId ? 'Fichier et commentaire publiés.' : 'Commentaire publié.');
+      };
+      if (!file) return post();
+      var meta = { id: uid('f'), teamId: mc.teamId, subId: sc.id, missionId: mc.id, name: file.name, size: file.size, type: file.type || '', at: cm.at, by: cm.by };
+      f.querySelector('[type=submit]').disabled = true;
+      Files.put(meta.id, file).then(function () {
+        evc.files.push(meta); cm.fileId = meta.id; cm.fileName = file.name; post();
+      }).catch(function () { f.querySelector('[type=submit]').disabled = false; toast('Impossible d\'enregistrer « ' + file.name + ' » (mémoire du navigateur pleine ?).'); });
       return;
     }
     if (f.getAttribute('data-form') === 'add-sub') {
