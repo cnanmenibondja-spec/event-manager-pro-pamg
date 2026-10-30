@@ -928,7 +928,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
   'use strict';
 
   var B = window.BRAND || {};
-  var APP_VERSION = '5.8';
+  var APP_VERSION = '5.9';
   var KEY = B.storageKey || 'emp_v2';
 
   /* ---------- Outils ---------- */
@@ -4172,8 +4172,13 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
   var isStandalone = function () { return (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true; };
   var isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   var canInstall = function () { return /^https?:$/.test(location.protocol) && !isStandalone(); };
+  /* v5.9 : sur Android, seul Chrome installe une application que Google Play Protect accepte.
+     Samsung Internet (et les autres navigateurs) fabriquent leur propre paquet, que Play Protect bloque
+     (« Appli non sécurisée bloquée »). Dans ces navigateurs, on ne lance pas leur installation : on propose d'ouvrir Chrome. */
+  var isAndroidOther = /android/i.test(navigator.userAgent) && (/SamsungBrowser|EdgA|OPR\/|Firefox|YaBrowser|MiuiBrowser|HuaweiBrowser|HeyTapBrowser|UCBrowser|DuckDuckGo|; wv\)/i.test(navigator.userAgent) || !/Chrome\//.test(navigator.userAgent) || !!navigator.brave);
+  var chromeLink = 'intent://' + location.host + location.pathname + '#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent('https://play.google.com/store/apps/details?id=com.android.chrome') + ';end';
   window.addEventListener('beforeinstallprompt', function (e) {
-    e.preventDefault(); deferredInstall = e;
+    e.preventDefault(); if (isAndroidOther) return; deferredInstall = e;
     if (ui.view === 'settings' && safeNow()) render();
     var b = $('#cl-install'); if (b) b.hidden = false;
   });
@@ -4185,12 +4190,13 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     var ua = navigator.userAgent, h;
     if (isIOS) h = '<b>iPhone / iPad :</b> ouvrez cette page dans <b>Safari</b>, touchez <b>Partager</b> (le carré avec une flèche vers le haut), puis <b>« Sur l\'écran d\'accueil »</b> et <b>Ajouter</b>.';
     else if (isMacSafari) h = '<b>Mac avec Safari :</b> Safari ne laisse pas un site s\'installer tout seul, il faut le faire une fois à la main. Dans la barre de menus tout en haut de l\'écran, cliquez sur <b>Fichier</b> puis <b>« Ajouter au Dock… »</b>, puis <b>Ajouter</b>. L\'icône apparaît dans le Dock et dans le dossier Applications.<br><small>Si « Ajouter au Dock » n\'apparaît pas, mettez à jour macOS (Sonoma ou plus récent) ou utilisez Google Chrome.</small>';
+    else if (isAndroidOther) h = '<b>Android :</b> installez l\'application avec <b>Google Chrome</b>. Avec ce navigateur-ci (par exemple Samsung Internet), Google Play Protect peut afficher <b>« Appli non sécurisée bloquée »</b>. Si vous avez vu ce message, touchez <b>OK</b> : rien n\'a été installé et votre téléphone ne risque rien.<br><a class="btn btn-gold mt" href="' + esc(chromeLink) + '">Ouvrir dans Chrome</a><br>Dans Chrome, touchez le menu <b>⋮</b> en haut à droite, puis <b>« Installer l\'application »</b> (ou « Ajouter à l\'écran d\'accueil »), puis <b>Installer</b>. Reconnectez-vous ensuite avec votre e-mail et votre mot de passe : vos événements sont enregistrés en ligne, rien n\'est perdu.';
     else if (/Android/.test(ua)) h = '<b>Android :</b> dans <b>Chrome</b>, touchez le menu <b>⋮</b> en haut à droite, puis <b>« Installer l\'application »</b> (ou « Ajouter à l\'écran d\'accueil »).';
     else if (navigator.brave) h = '<b>Brave :</b> le bouton ne peut pas installer tout seul dans Brave, il faut le faire une fois à la main. Cliquez sur l\'icône <b>Installer</b> (un petit écran avec une flèche) tout à droite dans la barre d\'adresse, puis <b>Installer</b>. Si elle n\'y est pas : menu <b>☰</b> en haut à droite › <b>« Enregistrer et partager »</b> › <b>« Installer la page en tant qu\'application… »</b> (selon la version : <b>« Installer Event Manager… »</b> directement dans le menu). L\'icône apparaît ensuite dans le Dock et le Launchpad.<br><small>Si rien de cela n\'apparaît, désactivez le bouclier Brave (le lion à droite de l\'adresse) pour ce site, rechargez la page et réessayez, ou utilisez Safari (Fichier › « Ajouter au Dock… ») ou Google Chrome.</small>';
     else if (/Macintosh/.test(ua) && /Chrome/.test(ua) && !/Edg|OPR/.test(ua)) h = '<b>Mac avec Google Chrome :</b> cliquez sur l\'icône <b>Installer</b> (un petit écran avec une flèche) tout à droite dans la barre d\'adresse, puis <b>Installer</b>. Sinon : menu <b>⋮</b> en haut à droite › <b>« Caster, enregistrer et partager »</b> › <b>« Installer la page en tant qu\'application… »</b>. L\'icône apparaît dans le Dock et le Launchpad.';
     else if (isFirefox) h = '<b>Firefox</b> ne sait pas installer les applications web sur ordinateur : ouvrez cette page dans <b>Google Chrome</b>, <b>Microsoft Edge</b> ou, sur Mac, <b>Safari</b>.';
     else h = '<b>Ordinateur (Chrome ou Edge) :</b> cliquez sur l\'icône <b>Installer</b> (un petit écran avec une flèche) à droite dans la barre d\'adresse. Sinon : menu <b>⋮</b> › <b>« Enregistrer et partager »</b> (ou « Caster, enregistrer et partager ») › <b>« Installer la page en tant qu\'application… »</b>.';
-    if (!isIOS && !isMacSafari && !isFirefox) h += '<br><small>Si le navigateur propose seulement <b>« Ouvrir dans l\'application »</b>, c\'est qu\'elle est <b>déjà installée</b> sur cet appareil : cherchez l\'icône Event Manager dans le Dock, le Launchpad ou l\'écran d\'accueil. Elle s\'est mise à jour toute seule.</small>';
+    if (!isIOS && !isMacSafari && !isFirefox && !isAndroidOther) h += '<br><small>Si le navigateur propose seulement <b>« Ouvrir dans l\'application »</b>, c\'est qu\'elle est <b>déjà installée</b> sur cet appareil : cherchez l\'icône Event Manager dans le Dock, le Launchpad ou l\'écran d\'accueil. Elle s\'est mise à jour toute seule.</small>';
     return h;
   }
   function installLink() { return canInstall() ? ' · <button class="link-btn" data-act="go" data-v="settings">📲 Installer</button>' : ''; }
