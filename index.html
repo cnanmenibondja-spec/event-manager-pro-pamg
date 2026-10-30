@@ -719,6 +719,14 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
   var CFG = window.EMP_CLOUD || {};
   var LIB = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js';
   var BUCKET = 'emp-files';
+  // v5.8 : types de fichiers acceptés par Supabase (même liste que le script SQL v5.8). Les autres partent en « à télécharger ».
+  var SAFE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif', 'application/pdf', 'text/plain', 'text/csv',
+    'video/mp4', 'video/quicktime', 'video/webm', 'audio/mpeg', 'audio/mp4', 'audio/x-m4a', 'audio/wav',
+    'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'application/vnd.oasis.opendocument.text', 'application/vnd.oasis.opendocument.spreadsheet', 'application/vnd.oasis.opendocument.presentation',
+    'application/vnd.apple.keynote', 'application/vnd.apple.pages', 'application/vnd.apple.numbers', 'application/zip'];
   var sb = null, user = null, spaceId = null, channel = null, authCb = null;
 
   function loadLib() {
@@ -742,6 +750,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     if (/Failed to fetch|NetworkError|network/i.test(m)) return 'Pas de connexion internet.';
     if (/does not exist|schema cache|Could not find the (table|function|column)/i.test(m)) return 'La base de données n\'est pas encore à jour : lancez une fois le script SQL v5.0 dans Supabase (SQL Editor), puis rechargez la page.';
     if (/rate limit/i.test(m)) return 'Trop d\'essais : attendez quelques minutes.';
+    if (/mime type|invalid_mime/i.test(m)) return 'Ce type de fichier n\'est pas accepté.';
     return m || 'Erreur inconnue';
   }
   function isNetErr(e) { return /Failed to fetch|NetworkError|network|Load failed|timeout/i.test(String((e && e.message) || e || '')); }
@@ -783,7 +792,13 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     /* ----- Annuaire (v5.0) : nom et WhatsApp de chaque inscrit de l'édition ----- */
     myProfile: function (edition) { return sb.from('profiles').select('user_id, name, phone').eq('user_id', user.id).eq('edition', edition).then(must).then(function (r) { return r[0] || null; }); },
     saveProfile: function (edition, name, phone) { return sb.from('profiles').upsert({ user_id: user.id, edition: edition, name: name || '', phone: phone || '' }, { onConflict: 'user_id,edition' }).then(must); },
-    directory: function (edition) { return sb.from('profiles').select('user_id, name, phone').eq('edition', edition).then(must); },
+    // v5.8 : tous les noms, mais le numéro seulement pour les personnes d'un même événement (fonction emp_directory)
+    directory: function (edition) {
+      return sb.rpc('emp_directory', { e: edition }).then(must).catch(function (e) {
+        if (/emp_directory|schema cache|Could not find the function|does not exist/i.test(String((e && e.message) || e))) return sb.from('profiles').select('user_id, name, phone').eq('edition', edition).then(must);
+        throw e;
+      });
+    },
 
     /* ----- Événements (v5.0 : un événement = un espace) ----- */
     myEvents: function (edition) {
@@ -900,20 +915,20 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     unsubscribe: function () { if (channel && sb) { sb.removeChannel(channel); } channel = null; },
 
     /* ----- Fichiers ----- */
-    upload: function (id, blob) { return sb.storage.from(BUCKET).upload(spaceId + '/' + id, blob, { upsert: false, contentType: blob.type || 'application/octet-stream' }).then(function (r) { if (r.error && !/exists|Duplicate/i.test(r.error.message || '')) throw r.error; }); },
+    upload: function (id, blob) { return sb.storage.from(BUCKET).upload(spaceId + '/' + id, blob, { upsert: false, contentType: SAFE_TYPES.indexOf(blob.type) >= 0 ? blob.type : 'application/octet-stream' }).then(function (r) { if (r.error && !/exists|Duplicate/i.test(r.error.message || '')) throw r.error; }); },
     download: function (id, sid) { return sb.storage.from(BUCKET).download((sid || spaceId) + '/' + id).then(must); },
     removeFile: function (id) { return sb.storage.from(BUCKET).remove([spaceId + '/' + id]).then(must); }
   };
   window.Cloud = Cloud;
 })();
 </script>
-<script>/* Event Manager Pro v5.6 — message WhatsApp qui suit les rôles actuels, chaque nouveau rôle est demandé (oui / non), chacun organise ses événements (annuaire, répartition des rôles, réponses), bouton Installer, plusieurs équipes par personne, s'installe comme une application, en ligne (comptes, invitations, synchronisation), réunions, équipes habituelles, missions, OK des chefs (avec réserve), budget par équipe, jour J, bilan.
+<script>/* Event Manager Pro v5.8 — sécurité (fichiers ouverts selon leur vrai type, liens https, « non » = plus d'accès), v5.6 : message WhatsApp qui suit les rôles actuels, chaque nouveau rôle est demandé (oui / non), chacun organise ses événements (annuaire, répartition des rôles, réponses), bouton Installer, plusieurs équipes par personne, s'installe comme une application, en ligne (comptes, invitations, synchronisation), réunions, équipes habituelles, missions, OK des chefs (avec réserve), budget par équipe, jour J, bilan.
    Sans compte, les données restent dans ce navigateur (localStorage) ; avec un compte, elles sont partagées en ligne (Supabase). */
 (function () {
   'use strict';
 
   var B = window.BRAND || {};
-  var APP_VERSION = '5.7';
+  var APP_VERSION = '5.8';
   var KEY = B.storageKey || 'emp_v2';
 
   /* ---------- Outils ---------- */
@@ -1328,6 +1343,21 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
   })();
   function fmtSize(n) { return n < 1024 * 1024 ? Math.max(1, Math.round(n / 1024)) + ' Ko' : (n / 1048576).toFixed(1).replace('.', ',') + ' Mo'; }
   function fileExt(name) { var m = /\.([a-z0-9]{1,5})$/i.exec(name || ''); return m ? m[1].toLowerCase() : 'doc'; }
+  /* v5.8 : un fichier s'ouvre seulement selon son vrai type, déduit de son nom. Un faux « .pdf » (une page web cachée)
+     ne peut donc pas s'exécuter dans l'application. Les autres types sont seulement téléchargés. */
+  var VIEW_TYPES = { pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', mp4: 'video/mp4', mov: 'video/quicktime', txt: 'text/plain' };
+  function viewBlob(blob, name) { var t = VIEW_TYPES[fileExt(name)]; return t ? new Blob([blob], { type: t }) : null; }
+  function saveBlob(blob, name) {
+    var url = URL.createObjectURL(new Blob([blob], { type: 'application/octet-stream' })), a = document.createElement('a');
+    a.href = url; a.download = name || 'fichier'; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
+  }
+  /* v5.8 : un lien (visio, cagnotte) doit être une adresse web https:// ou http:// ; « zoom.us/j/… » devient « https://zoom.us/j/… ». */
+  function safeUrl(u) {
+    u = String(u || '').trim(); if (!u) return '';
+    if (!/^[a-z][a-z0-9+.-]*:/i.test(u)) u = 'https://' + u.replace(/^\/+/, '');
+    return /^https?:\/\/[^\s"'<>]+$/i.test(u) ? u : '';
+  }
   var teamFiles = function (ev, tid) { return (ev.files || []).filter(function (f) { return f.teamId === tid; }); };
   function dropFiles(ev, list) { list.forEach(function (f) { Files.del(f.id).catch(function () {}); }); }
 
@@ -1995,7 +2025,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     var me = isOrg() ? 'org' : isLead() && myTeam() ? 'L:' + myTeam() : null;
     var h = '<article class="mission meeting' + (isUp ? '' : ' is-past') + '" id="mt-' + mt.id + '"><div class="m-head"><div><h3>' + esc(mt.title) + '</h3><div class="m-meta">' +
       '<span class="chip gold">' + esc(mtWhen(mt)) + '</span>' + (mt.place ? '<span class="chip">📍 ' + esc(mt.place) + '</span>' : '') +
-      (mt.link ? '<a class="chip" href="' + esc(mt.link) + '" target="_blank" rel="noopener">🎥 Rejoindre en visio</a>' : '') +
+      (safeUrl(mt.link) ? '<a class="chip" href="' + esc(safeUrl(mt.link)) + '" target="_blank" rel="noopener">🎥 Rejoindre en visio</a>' : '') +
       '<span class="chip">👥 ' + esc(mtWho(ev, mt)) + '</span>' + (mt.minutes ? '<span class="chip ok">Compte rendu</span>' : '') + '</div></div>' +
       (edit ? '<div class="m-tools"><button class="btn btn-sm" data-act="edit-meeting" data-id="' + mt.id + '">✎ Modifier</button></div>' : '') + '</div>';
     if (mt.agenda) h += '<div class="m-desc"><b>Ordre du jour</b><ol class="agenda">' + mt.agenda.split('\n').filter(function (l) { return l.trim(); }).map(function (l) { return '<li>' + esc(l.replace(/^[-•\d.)\s]+/, '')) + '</li>'; }).join('') + '</ol></div>';
@@ -2097,7 +2127,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
       }).join('') + '</tbody><tfoot><tr><td colspan="2">Total</td><td class="num">' + fmtMoney(spent) + '</td><td></td></tr></tfoot></table></div>' : empty('Aucune dépense notée.')) + '</div>';
     h += '<div class="card"><h2>Contributions <span class="acts">' + btn('+ Ajouter', 'new-contrib', 'btn-sm') + '</span></h2>' +
       '<div class="pot-head">' + (goal ? '<p><b>' + fmtMoney(rec) + '</b> reçus sur <b>' + fmtMoney(goal) + '</b> (' + Math.round(rec / goal * 100) + ' %)</p>' + bar(Math.round(rec / goal * 100)) : '<p class="muted small">Ajoutez un objectif de collecte et le lien de la cagnotte PayPal dans « Modifier l\'événement ».</p>') +
-      '<p class="small">' + (ev.paypal ? 'Cagnotte : <a href="' + esc(ev.paypal) + '" target="_blank" rel="noopener">' + esc(ev.paypal.replace(/^https?:\/\//, '').slice(0, 40)) + '</a> · ' : '') + '<a href="#" data-act="edit-event" data-id="' + ev.id + '">' + (ev.paypal ? 'modifier' : '+ ajouter le lien de la cagnotte') + '</a></p></div>' +
+      '<p class="small">' + (safeUrl(ev.paypal) ? 'Cagnotte : <a href="' + esc(safeUrl(ev.paypal)) + '" target="_blank" rel="noopener">' + esc(ev.paypal.replace(/^https?:\/\//, '').slice(0, 40)) + '</a> · ' : '') + '<a href="#" data-act="edit-event" data-id="' + ev.id + '">' + (ev.paypal ? 'modifier' : '+ ajouter le lien de la cagnotte') + '</a></p></div>' +
       quickContrib() +
       (ev.contributions.length ? '<div class="tbl-wrap mt"><table class="tbl"><thead><tr><th>Nom</th><th class="num">Montant</th><th>Statut</th></tr></thead><tbody>' +
       ev.contributions.slice().sort(function (a, b) { return a.status === b.status ? (a.who < b.who ? -1 : 1) : a.status === 'promesse' ? -1 : 1; }).map(function (c) {
@@ -2239,7 +2269,8 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
       'Dans <b>« Répartition des rôles »</b>, choisissez pour chaque équipe un chef et des membres parmi les personnes inscrites.',
       'Tout reste <b>en brouillon</b> jusqu\'à ce que vous cliquiez sur <b>« Publier les rôles »</b>. Personne ne voit rien avant.',
       'Après publication, chaque personne voit <b>« Nouveau rôle pour vous »</b> et répond <b>« J\'accepte »</b> ou <b>« Je ne peux pas »</b>, rôle par rôle. Un nouveau rôle donné plus tard est aussi demandé.',
-      'Tant qu\'un rôle n\'est pas accepté, il ne donne aucun accès. Refuser un rôle ne retire pas les autres.',
+      'Tant qu\'un rôle n\'est pas accepté, il ne donne aucun accès. Refuser un rôle ne retire pas les autres : la personne ne voit plus cette équipe, mais garde ses autres équipes.',
+      'Une personne qui répond <b>« Je ne peux pas »</b> à tout l\'événement ne le voit plus. Si elle change d\'avis, elle clique sur l\'événement dans sa liste puis sur <b>« Finalement, j\'accepte »</b>.',
       'Vous êtes prévenu de chaque réponse dans « Mes événements ». À côté de chaque nom, la répartition montre : accepté, refusé ou en attente.'
     ]],
     ['notify', '💬 Prévenir l\'équipe (WhatsApp)', [
@@ -2258,6 +2289,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
       'Sous chaque tâche, <b>« 👤 Responsable »</b> montre qui s\'en occupe. Le chef d\'équipe (ou l\'organisateur) le choisit dans la liste des membres de l\'équipe. C\'est un repère visible par toute l\'équipe : aucun message n\'est envoyé.',
       'Le bouton <b>« 💬 Commenter »</b> ouvre la discussion de la tâche. Toute l\'équipe peut écrire où en est le travail.',
       '<b>« 📎 Joindre un fichier »</b> ajoute un document au commentaire (par exemple le flyer pour la tâche « Créer le flyer »). On peut l\'ouvrir ou le télécharger. Il apparaît aussi dans <b>« Présentations & documents »</b> de l\'équipe.',
+      'Chaque équipe voit seulement ses propres fichiers. Les PDF, photos, vidéos et textes s\'ouvrent dans l\'application ; les autres fichiers (Word, PowerPoint…) se téléchargent. Chacun peut supprimer son propre fichier.',
       'Le bouton montre le nombre de commentaires et de fichiers (💬 3 · 📎 1). Chacun peut supprimer son propre commentaire ; le chef peut supprimer ceux de son équipe.'
     ]],
     ['ok', '🟢 OK des équipes', [
@@ -2274,7 +2306,8 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     ]],
     ['meetings', '🗓️ Réunions', [
       'L\'organisateur (ou un chef pour son équipe) prévoit une réunion : date, heure, lieu ou lien, ordre du jour, invités.',
-      'On l\'envoie par WhatsApp. Chacun répond <b>« ✓ Je viens »</b> ou <b>« ✕ Je ne viens pas »</b>.',
+      'Le lien de visio doit être une adresse web qui commence par <b>https://</b> (si vous écrivez seulement « zoom.us/… », l\'application l\'ajoute).',
+      'On l\'envoie par WhatsApp. Chacun répond <b>« ✓ Je viens »</b> ou <b>« ✕ Je ne viens pas »</b>. On ne peut changer que sa propre réponse ; le chef et l\'organisateur peuvent corriger.',
       'Après la réunion, on écrit le <b>compte rendu</b> et on ajoute les tâches décidées aux missions.'
     ]],
     ['program', '⏱️ Programme et participants', [
@@ -2290,6 +2323,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
       'Avec un compte, tout le monde voit les changements <b>en direct</b>, sur tous ses appareils.',
       'Sans réseau, l\'application garde une copie sur l\'appareil et envoie les changements dès que la connexion revient.',
       'Les deux éditions (Event Manager Pro et Pray and Move) sont séparées : chacune a ses propres comptes et ses propres événements.',
+      'Le <b>numéro WhatsApp</b> d\'une personne est visible seulement par les personnes qui sont dans un même événement qu\'elle. Dans la liste des inscrits, on voit les autres noms sans leur numéro.',
       'Dans « Aide & réglages », <b>« Télécharger une sauvegarde »</b> garde une copie des données dans un fichier.'
     ]]
   ];
@@ -2367,6 +2401,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
       else if (fd.type === 'file') out[fd.k] = el.files && el.files[0] ? el.files[0] : null;
       else if (fd.type === 'money') out[fd.k] = el.value.trim() === '' ? null : Math.max(0, parseFloat(String(el.value).replace(',', '.')) || 0);
       else if (fd.type === 'number') out[fd.k] = el.value === '' ? 0 : Math.max(0, parseFloat(String(el.value).replace(',', '.')) || 0);
+      else if (fd.type === 'url') { out[fd.k] = safeUrl(el.value); if (el.value.trim() && !out[fd.k] && !bad) { bad = el; toast('Le lien doit être une adresse web qui commence par https://'); } }
       else out[fd.k] = el.value.trim();
       if (fd.req && !out[fd.k] && !bad) bad = el;
     });
@@ -2891,10 +2926,11 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     'receipt': function (el, ev) {
       var x = ev.expenses.filter(function (e) { return e.id === el.getAttribute('data-id'); })[0];
       if (!x || !x.receiptId) return;
-      var w = window.open('', '_blank');
+      var nm = x.receiptName || 'ticket.jpg', w = VIEW_TYPES[fileExt(nm)] ? window.open('', '_blank') : null;
       Files.get(x.receiptId).then(function (blob) {
         if (!blob) { if (w) w.close(); toast('La photo du ticket est sur un autre appareil.'); return; }
-        var url = URL.createObjectURL(blob); if (w) w.location.href = url; setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
+        if (!w) { saveBlob(blob, nm); return; }
+        var url = URL.createObjectURL(viewBlob(blob, nm)); w.location.href = url; setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
       }).catch(function () { if (w) w.close(); toast('Impossible d\'ouvrir le ticket.'); });
     },
     'fin-done': function (el, ev) {
@@ -2999,8 +3035,8 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     },
     'toggle-fin': function (el) { var k = 'fin-' + el.getAttribute('data-id'); ui.open[k] = !ui.open[k]; render(); },
     'contribute': function (el, ev) {
-      if (!ev.paypal) { toast('L\'organisateur n\'a pas encore mis le lien de la cagnotte.'); return; }
-      window.open(ev.paypal, '_blank', 'noopener');
+      if (!safeUrl(ev.paypal)) { toast('L\'organisateur n\'a pas encore mis le lien de la cagnotte.'); return; }
+      window.open(safeUrl(ev.paypal), '_blank', 'noopener');
     },
     'share-pot': function (el, ev) {
       var rec = sum(ev.contributions.filter(function (c) { return c.status === 'recu'; }), 'amount');
@@ -3057,12 +3093,13 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
   function openFile(ev, id, download) {
     var f = (ev.files || []).filter(function (x) { return x.id === id; })[0];
     if (!f) return;
+    if (!VIEW_TYPES[fileExt(f.name)]) download = true;
     var w = download ? null : window.open('', '_blank');
     Files.get(id).then(function (blob) {
       if (!blob) { if (w) w.close(); toast(ON.on ? 'Ce fichier n\'est pas encore arrivé en ligne : réessayez dans un moment.' : 'Ce fichier n\'est pas sur cet appareil (il a été déposé sur un autre téléphone ou ordinateur).'); return; }
-      var url = URL.createObjectURL(blob);
-      if (w) { w.location.href = url; }
-      else { var a = document.createElement('a'); a.href = url; a.download = f.name; document.body.appendChild(a); a.click(); a.remove(); }
+      if (!w) { saveBlob(blob, f.name); return; }
+      var url = URL.createObjectURL(viewBlob(blob, f.name));
+      w.location.href = url;
       setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
     }).catch(function () { if (w) w.close(); toast('Impossible de lire le fichier sur cet appareil.'); });
   }
@@ -3506,7 +3543,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     loadEvents(true).then(function (list) {
       var el = $('#cl-list'); if (!el) return;
       var inv = list.filter(function (e) { return e.role !== 'org' && (!e.answer || e.teams.some(function (t) { return rolePending(t, e.answer); })); });
-      if (auto && list.length === 1 && !inv.length) { openSpace(list[0].id).catch(function (e) { toast(Cloud.frErr(e)); }); return; }
+      if (auto && list.length === 1 && !inv.length && !(list[0].role !== 'org' && list[0].answer === 'no')) { openSpace(list[0].id).catch(function (e) { toast(Cloud.frErr(e)); }); return; }
       el.innerHTML = eventsListHtml(list);
     }).catch(function (e) { var el = $('#cl-list'); if (el) el.innerHTML = '<p class="cl-err">' + esc(Cloud.frErr(e)) + '</p><button type="button" class="btn" data-act="cl-spaces">Réessayer</button>'; });
   }
@@ -3609,7 +3646,9 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
       var tx = cat && e ? (e.teams || []).filter(function (t) { return t.cat_id === cat; }).map(function (t) { return 'le rôle de ' + (t.role === 'lead' ? 'chef' : 'membre') + ' de « ' + (t.cat_name || 'l\'équipe') + ' »'; })[0] : '';
       if (e) { var ma0 = e.answer; mark(e.teams, ma0); if (!cat || a === 'yes') e.answer = cat ? 'yes' : a; }
       if (inEv) { var ma1 = ON.me.answer; mark(ON.me.teams, ma1); if (!cat || a === 'yes') ON.me.answer = cat ? 'yes' : a; }
-      var after = function () { if (inEv) { setTeams(); fullSync(); render(); } else if (CL.el && !CL.el.hidden) { var el = $('#cl-list'); if (el) el.innerHTML = eventsListHtml(ON.list || []); } else render(); };
+      closeModal();
+      var leave = inEv && !cat && a === 'no' && declinedMe(); // v5.8 : « non » à l'événement = retour à la liste
+      var after = function () { if (leave) { closeSpace(true); clSpaces(); } else if (inEv) { setTeams(); fullSync(); render(); } else if (CL.el && !CL.el.hidden) { var el = $('#cl-list'); if (el) el.innerHTML = eventsListHtml(ON.list || []); } else render(); };
       after();
       // Prévenir aussi l'organisateur sur WhatsApp
       if (!e || !e.createdBy) return;
@@ -3870,11 +3909,18 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     if (!Cloud.ready()) { if (cache) { show(); setStatus('offline'); return Promise.resolve(); } ON.on = false; state = load(); return Promise.reject(new Error('Failed to fetch')); }
     return Cloud.openSpace(id).then(function (o) {
       try { applyMe(o); } catch (e) { ON.on = false; state = load(); lsDel(KEY + '_space'); throw e.code === 'EDITION' ? new Error('Cet espace appartient à l\'autre édition d\'Event Manager Pro.') : e; }
+      if (declinedMe()) { var nm = (o.space && o.space.name) || ''; closeSpace(true); clSpaces(); showDeclined(id, nm); return; }
       show(); return fullSync();
     }, function (e) {
       if (Cloud.isNetErr(e) && cache) { show(); setStatus('offline'); return; }
       ON.on = false; state = load(); throw e;
     });
+  }
+  /* v5.8 : une personne qui a répondu « non » à l'événement ne le voit plus. Elle peut seulement changer d'avis. */
+  function declinedMe() { return !!(ON.me && ON.me.role !== 'org' && ON.me.status !== 'draft' && ON.me.answer === 'no'); }
+  function showDeclined(id, name) {
+    openForm('Vous avez répondu « je ne peux pas »', [{ type: 'note', k: '_n', html: '<p>Pour « <b>' + esc(name || 'cet événement') + '</b> », vous avez répondu que vous ne pouvez pas servir. Vous ne voyez donc plus cet événement.</p>' +
+      '<p style="margin-top:8px">Si finalement vous pouvez venir, dites-le ici : l\'organisateur sera prévenu et l\'événement reviendra.</p><div class="m-actions">' + btn('✓ Finalement, j\'accepte', 'ev-yes', 'btn-ok', ' data-id="' + esc(id) + '"') + '</div>' }], {}, function () {}, { saveLabel: 'Fermer' });
   }
   /* forget : on oublie aussi la copie de l'espace sur cet appareil (déconnexion). */
   function closeSpace(forget) {
@@ -4020,7 +4066,10 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
       if (!/^\S+@\S+\.\S+$/.test(em.trim())) { $('#cl-err').textContent = 'Écrivez d\'abord votre e-mail ci-dessus, puis cliquez sur « Mot de passe oublié ? ».'; return; }
       Cloud.resetPassword(em.trim()).then(function () { $('#cl-err').textContent = 'Si un compte existe, un e-mail vient de partir avec un lien pour choisir un nouveau mot de passe. Pas reçu ? Demandez à l\'organisateur.'; }, function (e) { $('#cl-err').textContent = Cloud.frErr(e); });
     },
-    'cl-open': function (el) { var id = el.getAttribute('data-id'); el.disabled = true; openSpace(id).catch(function (e) { el.disabled = false; toast(Cloud.frErr(e)); }); },
+    'cl-open': function (el) {
+      var id = el.getAttribute('data-id'), e = (ON.list || []).filter(function (x) { return x.id === id; })[0];
+      if (e && e.role !== 'org' && e.answer === 'no') { showDeclined(id, e.name); return; }
+      el.disabled = true; openSpace(id).catch(function (e) { el.disabled = false; toast(Cloud.frErr(e)); }); },
     'cl-spaces': function () { clSpaces(); },
     'cl-switch': function () { closeSpace(false); clSpaces(); },
     'cl-logout': function () {
