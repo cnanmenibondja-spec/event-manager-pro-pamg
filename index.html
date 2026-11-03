@@ -655,7 +655,7 @@ body.cl-open .modal{z-index:250}
 .guide .g-item ul{margin:0 0 12px;padding-left:22px;font-size:14px;color:var(--ink-2);display:grid;gap:6px;max-width:75ch}
 .guide .g-item b{color:var(--ink)}
 
-/* --- v6.1 : inscriptions publiques --- */
+/* --- v6.0 : inscriptions publiques --- */
 body.pub-mode .app{display:none}
 .pub{align-items:flex-start}
 .pub-box{max-width:520px}
@@ -930,7 +930,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     inviteInfo: function (code) { return sb.rpc('emp_invite_info', { p_code: code }).then(must); },
     acceptInvite: function (code, name) { return sb.rpc('emp_accept_invite', { p_code: code, p_name: name || '' }).then(must); },
 
-    /* ----- v6.1 : inscriptions publiques (lien ?inscription=CODE, sans compte) ----- */
+    /* ----- v6.0 : inscriptions publiques (lien ?inscription=CODE, sans compte) ----- */
     regInfo: function (code) { return sb.rpc('emp_reg_info', { p_code: code }).then(must); },
     register: function (code, f) { return sb.rpc('emp_register', { p_code: code, p_name: f.name, p_phone: f.phone || '', p_email: f.email || '', p_people: f.people, p_consent: !!f.consent }).then(must); },
     regStatus: function (token) { return sb.rpc('emp_reg_status', { p_token: token }).then(must); },
@@ -993,13 +993,13 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
   window.Cloud = Cloud;
 })();
 </script>
-<script>/* Event Manager Pro v6.1 — inscriptions publiques (lien sans compte, compteur, liste d'attente), v6.0 : chaque action s'affiche tout de suite (répartition des rôles, personnes, publication), v5.8 — sécurité (fichiers ouverts selon leur vrai type, liens https, « non » = plus d'accès), v5.6 : message WhatsApp qui suit les rôles actuels, chaque nouveau rôle est demandé (oui / non), chacun organise ses événements (annuaire, répartition des rôles, réponses), bouton Installer, plusieurs équipes par personne, s'installe comme une application, en ligne (comptes, invitations, synchronisation), réunions, équipes habituelles, missions, OK des chefs (avec réserve), budget par équipe, jour J, bilan.
+<script>/* Event Manager Pro v6.0 — inscriptions publiques (lien sans compte, compteur, liste d'attente) ; chaque action s'affiche tout de suite (répartition des rôles, personnes, publication), v5.8 — sécurité (fichiers ouverts selon leur vrai type, liens https, « non » = plus d'accès), v5.6 : message WhatsApp qui suit les rôles actuels, chaque nouveau rôle est demandé (oui / non), chacun organise ses événements (annuaire, répartition des rôles, réponses), bouton Installer, plusieurs équipes par personne, s'installe comme une application, en ligne (comptes, invitations, synchronisation), réunions, équipes habituelles, missions, OK des chefs (avec réserve), budget par équipe, jour J, bilan.
    Sans compte, les données restent dans ce navigateur (localStorage) ; avec un compte, elles sont partagées en ligne (Supabase). */
 (function () {
   'use strict';
 
   var B = window.BRAND || {};
-  var APP_VERSION = '6.1';
+  var APP_VERSION = '6.0';
   var KEY = B.storageKey || 'emp_v2';
 
   /* ---------- Outils ---------- */
@@ -1647,7 +1647,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     if (!ON.on && !isOrg() && !catOf(state.role.catId)) state.role = { kind: 'org' };
     renderChrome(ev);
     var V = { home: vHome, catalog: vCatalog, dash: vDash, teams: vTeams, team: vTeam, myteam: vTeam, missions: vMissions, program: vProgram, meetings: vMeetings, budget: vBudget, people: vPeople, live: vLive, debrief: vDebrief, settings: vSettings, roles: vRoles, notify: vNotify, regs: vRegs };
-    if (ON.on && isOrg() && ev && (ui.view === 'dash' || ui.view === 'people')) regAuto(); // v6.1 : nombre d'inscrits à jour
+    if (ON.on && isOrg() && ev && (ui.view === 'dash' || ui.view === 'people')) regAuto(); // v6.0 : nombre d'inscrits à jour
     $('#view').innerHTML = (ui.view !== 'home' && ui.view !== 'settings' ? answerBanner() : '') + (V[ui.view] || vDash)(ev);
     document.title = (ev && ui.evOpen ? ev.name + ' · ' : '') + 'Event Manager Pro';
   }
@@ -2222,7 +2222,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
   }
 
   /* ---------- Vue : participants ---------- */
-  // v6.1 : une inscription en ligne peut compter plusieurs personnes (« 3 personnes »).
+  // v6.0 : une inscription en ligne peut compter plusieurs personnes (« 3 personnes »).
   function regCount(ev) { return sum(ev.participants.filter(function (x) { return x.registered; }), function (x) { return x.people || 1; }); }
   function vPeople(ev) {
     var days = daysRange(ev.start, ev.end);
@@ -4418,7 +4418,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     });
   }
 
-  /* ----- v6.1 : inscriptions publiques (comme Guestoo) -----
+  /* ----- v6.0 : inscriptions publiques (comme Guestoo) -----
      Chaque événement peut avoir un lien « ?inscription=CODE ». N'importe qui l'ouvre, SANS compte, et s'inscrit :
      nom, WhatsApp ou e-mail, nombre de personnes. Le public voit seulement le nombre d'inscrits et de places.
      Places = « Personnes attendues ». Complet : liste d'attente, qui avance toute seule quand quelqu'un annule.
@@ -4662,7 +4662,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     var h = vhead('Inscriptions publiques', 'Un lien pour que tout le monde s\'inscrive à l\'événement, <b>sans compte</b>. Mettez-le sur le flyer (QR code) ou envoyez-le sur WhatsApp.',
       R.link ? btn('↻ Actualiser', 'reg-refresh', 'btn-ghost') : '');
     if (!ON.on) return h + '<div class="card">' + empty('Les inscriptions publiques marchent avec un compte en ligne. Connectez-vous dans « Aide & réglages ».') + '</div>';
-    if (R.err === 'sql') return h + '<div class="card"><div class="cl-inv bad">La base de données n\'est pas encore à jour pour les inscriptions : lancez une fois le script <b>SQL v6.1</b> dans Supabase (SQL Editor), puis rechargez la page.</div></div>';
+    if (R.err === 'sql') return h + '<div class="card"><div class="cl-inv bad">La base de données n\'est pas encore à jour pour les inscriptions : lancez une fois le script <b>SQL v6.0</b> dans Supabase (SQL Editor), puis rechargez la page.</div></div>';
     if (!R.at) { regAuto(); if (!R.busy) setTimeout(function () { regLoad(); }, 0); return h + '<div class="card"><p class="muted">Chargement…</p></div>'; }
     if (R.err) h += '<div class="cl-inv bad mb">' + esc(R.err) + '</div>';
     if (!R.link) return h + '<div class="card new-ev-empty"><h2>Pas encore de lien d\'inscription</h2><p class="muted">Créez le lien, puis ouvrez les inscriptions. Les places sont les « Personnes attendues » de l\'événement' + (ev.expected ? ' (' + ev.expected + ')' : '') + ' ; quand c\'est complet, les suivants vont en liste d\'attente.</p><div class="mt">' + btn('Créer le lien d\'inscription', 'reg-create', 'btn-gold btn-lg') + '</div></div>';
@@ -4693,7 +4693,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     return h;
   }
   function regFind(el) { var id = el.getAttribute('data-id'); return REG.list.filter(function (r) { return r.id === id; })[0]; }
-  function regDo(p, msg) { return p.then(function () { if (msg) toast(msg); REG.at = 0; return regLoad(); }, function (e) { var m = regErr(e); toast(m === 'sql' ? 'Lancez d\'abord le script SQL v6.1 dans Supabase.' : m); render(); }); }
+  function regDo(p, msg) { return p.then(function () { if (msg) toast(msg); REG.at = 0; return regLoad(); }, function (e) { var m = regErr(e); toast(m === 'sql' ? 'Lancez d\'abord le script SQL v6.0 dans Supabase.' : m); render(); }); }
   function regQr(link, ev) {
     openForm('QR code pour le flyer', [{ type: 'note', k: '_n', html: '<div class="reg-qr" id="reg-qr"><p class="muted">Préparation du QR code…</p></div><p class="small muted">Imprimez-le sur le flyer ou l\'affiche : on le scanne avec l\'appareil photo du téléphone, et la page d\'inscription s\'ouvre.</p>' }], {}, function () {}, { saveLabel: 'Fermer' });
     (window.qrcode ? Promise.resolve() : loadScript(QR_LIB)).then(function () {
@@ -4767,7 +4767,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
 
   /* ----- Démarrage ----- */
   function cloudStart() {
-    // v6.1 : page publique d'inscription (sans compte) : on n'ouvre pas l'application.
+    // v6.0 : page publique d'inscription (sans compte) : on n'ouvre pas l'application.
     var pm = /[?&]inscription=([A-Za-z0-9]{4,40})/.exec(location.search), pt = /[?&]ma=([0-9a-fA-F-]{36})/.exec(location.search);
     if (pm || pt) { pubStart(pm ? pm[1] : '', pt ? pt[1] : ''); return; }
     var m = /[?&]invite=([A-Za-z0-9]+)/.exec(location.search);
