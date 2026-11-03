@@ -1,20 +1,33 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex">
-<title>Event Manager Pro · Pray and Move Generation</title>
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Event Manager Pro · Pray and Move a déménagé</title><meta name="robots" content="noindex"><meta name="theme-color" content="#000000">
+<link rel="icon" href="/event-manager-pro-pamg/icons/icon-192.png"><link rel="manifest" href="/event-manager-pro-pamg/manifest.webmanifest">
 <script>
-/* Event Manager Pro v6.1 : un lien d'inscription lisible (…/gala-de-noel/inscription) ouvre la page d'inscription de l'application.
-   Toute autre adresse inconnue ramène à l'application. */
+/* Les liens partagés (inscription, invitation, QR codes) partent directement à la nouvelle adresse */
 (function () {
-  var p = location.pathname, m = /^(.*?\/)([a-z0-9-]{3,60})\/inscription\/?$/i.exec(p);
-  location.replace(m ? m[1] + '?inscription=' + m[2].toLowerCase() + location.hash : p.replace(/^(\/[^\/]+\/).*$/, '$1'));
+  var NEW = 'https://prayandmove.github.io/event-manager-pro-pamg/', base = location.pathname.replace(/^(\/[^\/]+\/).*$/, '$1'), rest = location.pathname.slice(base.length);
+  if (rest || location.search) location.replace(NEW + rest + location.search + location.hash);
 })();
 </script>
-</head>
-<body style="font-family:system-ui,sans-serif;text-align:center;padding-top:60px;color:#0A1230">
-<p>Ouverture de la page d'inscription…</p>
-</body>
-</html>
+<style>
+:root{--gold:#E8B52C;--gold-l:#F7D46A;--t:#EEF2FB;--m:#B7C1DA}*{box-sizing:border-box}
+body{margin:0;min-height:100vh;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--t);background:radial-gradient(ellipse at top,#0A1230 0%,#000000 75%);display:flex;justify-content:center;padding:28px 16px 40px}
+main{max-width:560px;width:100%;text-align:center}img{width:96px;height:96px;border-radius:24px;box-shadow:0 10px 30px rgba(0,0,0,.4)}
+h1{font-family:Georgia,serif;font-size:28px;margin:18px 0 6px}.lead{color:var(--m);line-height:1.6}
+.addr{display:inline-block;background:rgba(232,181,44,.12);border:1px solid rgba(232,181,44,.45);color:var(--gold-l);padding:8px 14px;border-radius:12px;font-weight:600;word-break:break-all;margin:6px 0 4px}
+.card{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:18px;padding:20px;margin:18px 0;text-align:left}.card h2{font-size:17px;margin:0 0 8px}
+.card li{color:var(--m);line-height:1.6;font-size:14.5px}.card ol{padding-left:20px;margin:0}
+.btn{display:block;border-radius:14px;padding:15px 18px;font-size:16px;font-weight:700;text-decoration:none;background:linear-gradient(180deg,var(--gold-l),var(--gold));color:#0A1230;margin-top:18px}
+.en{font-size:13px;color:var(--m);margin-top:20px;line-height:1.6}
+</style></head><body><main>
+<img src="/event-manager-pro-pamg/icons/icon-192.png" alt="">
+<h1>Event Manager Pro · Pray and Move a déménagé</h1>
+<p class="lead">L’application a une nouvelle adresse. Tes événements, rôles et inscriptions sont sur le serveur : tu les retrouves en te reconnectant avec le même e-mail et le même mot de passe.</p>
+<div class="addr">prayandmove.github.io/event-manager-pro-pamg</div>
+<a class="btn" href="https://prayandmove.github.io/event-manager-pro-pamg/">Ouvrir la nouvelle adresse</a>
+<div class="card"><h2>Réinstalle l’application</h2><ol>
+<li>Supprime l’ancienne icône de ton écran d’accueil (ou de ton ordinateur).</li>
+<li>Ouvre la nouvelle adresse et clique sur « Installer l’application ».</li>
+<li>Connecte-toi avec ton e-mail et ton mot de passe habituels.</li></ol></div>
+<p class="en"><b>Event Manager Pro · Pray and Move has moved</b> to the address above. Remove the old icon, open the new address, install the app again and sign in with your usual e-mail and password.</p>
+</main><script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('/event-manager-pro-pamg/sw.js').catch(function () {});</script></body></html>
