@@ -654,6 +654,59 @@ body.cl-open .modal{z-index:250}
 .guide summary:focus-visible{outline:2px solid var(--gold);outline-offset:2px;border-radius:6px}
 .guide .g-item ul{margin:0 0 12px;padding-left:22px;font-size:14px;color:var(--ink-2);display:grid;gap:6px;max-width:75ch}
 .guide .g-item b{color:var(--ink)}
+
+/* --- v6.1 : inscriptions publiques --- */
+body.pub-mode .app{display:none}
+.pub{align-items:flex-start}
+.pub-box{max-width:520px}
+.pub-brand img{width:44px;height:44px}
+.pub-brand b{font-size:18px}
+.pub-ev h1{font-size:26px;margin-bottom:8px}
+.pub-line{font-size:15px;color:var(--ink-2);margin:3px 0}
+.pub-desc{margin-top:10px;color:var(--ink-2);line-height:1.55}
+.pub-note{margin-top:12px}
+.pub-count{background:var(--bg);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;display:flex;flex-direction:column;gap:8px}
+.pub-count.full{background:var(--amber-soft);border-color:#F2D3A0}
+.pub-count>b{font-family:var(--f-title);font-size:20px}
+.pub-num{display:flex;align-items:baseline;gap:6px}
+.pub-num b{font-family:var(--f-title);font-size:40px;line-height:1;font-variant-numeric:lining-nums tabular-nums}
+.pub-num em{font-style:normal;font-size:20px;color:var(--muted);font-weight:600}
+.pub-count>span{font-size:14px;color:var(--muted)}
+.pub-full,.pub-left{font-size:14px;margin:0}
+.pub-left b{color:var(--gold-ink)}
+.pub-form select{border:1px solid var(--line-2);border-radius:10px;padding:11px 12px;font-size:16px;background:#fff;width:100%}
+.pub-hp{position:absolute!important;left:-9999px;width:1px;height:1px;overflow:hidden}
+.pub-consent span{font-size:13px;line-height:1.45;font-weight:400}
+.pub-ok,.pub-wait{border-radius:var(--r);padding:14px 16px}
+.pub-ok{background:var(--green-soft);border:1px solid #BFE5D2}
+.pub-wait{background:var(--amber-soft);border:1px solid #F2D3A0}
+.pub-ok>b,.pub-wait>b{font-size:17px;display:block;margin-bottom:4px}
+.pub-consent input{width:auto!important;flex:none;margin-top:3px}
+.pub-consent{align-items:flex-start}
+.pub-mine{display:flex;flex-direction:column;gap:6px;font-size:14px}
+.pub-mine .m-actions{margin-top:4px}
+.pub-known a{font-weight:600}
+.pub-foot{font-size:12px;color:var(--muted);text-align:center;margin:6px 0 0;line-height:1.45}
+.pub .btn{justify-content:center}
+.kpi.warnk{border-color:#F2D3A0;background:var(--amber-soft)}
+.kpi .bar{margin-top:8px}
+.reg-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.reg-top h2{margin:0}
+.reg-link .cl-link{width:100%}
+.reg-set{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;margin-top:14px;padding-top:12px;border-top:1px solid var(--line);font-size:13.5px;color:var(--ink-2)}
+.reg-row{display:flex;gap:12px;align-items:flex-start;padding:11px 0;border-top:1px solid var(--line)}
+.reg-row:first-of-type{border-top:0}
+.reg-n{min-width:26px;height:26px;border-radius:50%;background:var(--bg);display:grid;place-items:center;font-size:12.5px;font-weight:700;color:var(--muted)}
+.reg-main{flex:1;min-width:0}
+.reg-c{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:4px;font-size:13.5px;align-items:center}
+.reg-c a{color:var(--ink-2);text-decoration:none;word-break:break-all}
+.linkish{border:0;background:none;padding:0;color:var(--green);font-weight:600;cursor:pointer;font-size:13.5px}
+.reg-acts{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.reg-gone summary{cursor:pointer}
+.reg-qr{display:flex;flex-direction:column;align-items:center;gap:12px;padding:6px 0}
+.reg-qr img{width:240px;max-width:100%;height:auto;image-rendering:pixelated;border:1px solid var(--line);border-radius:8px}
+.mb{margin-bottom:14px}
+@media (max-width:640px){.reg-row{flex-wrap:wrap}.reg-acts{width:100%;justify-content:flex-start;padding-left:38px}}
 </style>
 </head>
 <body>
@@ -748,6 +801,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     if (/Email not confirmed/i.test(m)) return 'L\'e-mail n\'est pas encore confirmé (réglage Supabase « Confirm email » à désactiver).';
     if (/invalid format|valid email|Unable to validate email/i.test(m)) return 'Cette adresse e-mail n\'est pas valide.';
     if (/Failed to fetch|NetworkError|network/i.test(m)) return 'Pas de connexion internet.';
+    if (/EMP_REG:/.test(m)) return m.replace(/^.*?(EMP_REG:\w+).*$/, '$1');
     if (/does not exist|schema cache|Could not find the (table|function|column)/i.test(m)) return 'La base de données n\'est pas encore à jour : lancez une fois le script SQL v5.0 dans Supabase (SQL Editor), puis rechargez la page.';
     if (/rate limit/i.test(m)) return 'Trop d\'essais : attendez quelques minutes.';
     if (/mime type|invalid_mime/i.test(m)) return 'Ce type de fichier n\'est pas accepté.';
@@ -876,6 +930,23 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     inviteInfo: function (code) { return sb.rpc('emp_invite_info', { p_code: code }).then(must); },
     acceptInvite: function (code, name) { return sb.rpc('emp_accept_invite', { p_code: code, p_name: name || '' }).then(must); },
 
+    /* ----- v6.1 : inscriptions publiques (lien ?inscription=CODE, sans compte) ----- */
+    regInfo: function (code) { return sb.rpc('emp_reg_info', { p_code: code }).then(must); },
+    register: function (code, f) { return sb.rpc('emp_register', { p_code: code, p_name: f.name, p_phone: f.phone || '', p_email: f.email || '', p_people: f.people, p_consent: !!f.consent }).then(must); },
+    regStatus: function (token) { return sb.rpc('emp_reg_status', { p_token: token }).then(must); },
+    regCancel: function (token) { return sb.rpc('emp_reg_cancel', { p_token: token }).then(must); },
+    // Organisateur : réglages du lien et liste des inscrits de l'événement ouvert
+    regLink: function () { return sb.from('reg_links').select('*').eq('space_id', spaceId).then(must).then(function (r) { return r[0] || null; }); },
+    regCreate: function () { return sb.from('reg_links').insert({ space_id: spaceId }).select('*').then(must).then(function (r) { return r[0]; }); },
+    regSave: function (fields) { return sb.from('reg_links').update(fields).eq('space_id', spaceId).select('*').then(must).then(function (r) { return r[0]; }); },
+    regList: function () {
+      return sb.rpc('emp_reg_refresh', { p_space: spaceId }).then(must).then(function () {
+        return sb.from('registrations').select('id, name, phone, email, people, status, promoted, told, created_at, cancelled_at').eq('space_id', spaceId).order('created_at').then(must);
+      });
+    },
+    regUpdate: function (id, fields) { return sb.from('registrations').update(fields).eq('id', id).eq('space_id', spaceId).then(must); },
+    regDelete: function (id) { return sb.from('registrations').delete().eq('id', id).eq('space_id', spaceId).then(must); },
+
     /* ----- Éléments ----- */
     loadItems: function () {
       var out = [], size = 1000;
@@ -922,13 +993,13 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
   window.Cloud = Cloud;
 })();
 </script>
-<script>/* Event Manager Pro v6.0 — chaque action s'affiche tout de suite (répartition des rôles, personnes, publication), v5.8 — sécurité (fichiers ouverts selon leur vrai type, liens https, « non » = plus d'accès), v5.6 : message WhatsApp qui suit les rôles actuels, chaque nouveau rôle est demandé (oui / non), chacun organise ses événements (annuaire, répartition des rôles, réponses), bouton Installer, plusieurs équipes par personne, s'installe comme une application, en ligne (comptes, invitations, synchronisation), réunions, équipes habituelles, missions, OK des chefs (avec réserve), budget par équipe, jour J, bilan.
+<script>/* Event Manager Pro v6.1 — inscriptions publiques (lien sans compte, compteur, liste d'attente), v6.0 : chaque action s'affiche tout de suite (répartition des rôles, personnes, publication), v5.8 — sécurité (fichiers ouverts selon leur vrai type, liens https, « non » = plus d'accès), v5.6 : message WhatsApp qui suit les rôles actuels, chaque nouveau rôle est demandé (oui / non), chacun organise ses événements (annuaire, répartition des rôles, réponses), bouton Installer, plusieurs équipes par personne, s'installe comme une application, en ligne (comptes, invitations, synchronisation), réunions, équipes habituelles, missions, OK des chefs (avec réserve), budget par équipe, jour J, bilan.
    Sans compte, les données restent dans ce navigateur (localStorage) ; avec un compte, elles sont partagées en ligne (Supabase). */
 (function () {
   'use strict';
 
   var B = window.BRAND || {};
-  var APP_VERSION = '6.0';
+  var APP_VERSION = '6.1';
   var KEY = B.storageKey || 'emp_v2';
 
   /* ---------- Outils ---------- */
@@ -973,6 +1044,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     missions: '<path d="M9 6h11M9 12h11M9 18h11"/><path d="M3.5 6l1.3 1.3L7 5M3.5 12l1.3 1.3L7 11M3.5 18l1.3 1.3L7 17"/>',
     program: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
     budget: '<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18"/><circle cx="16" cy="14.5" r="1.4"/>',
+    regs: '<path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h5"/><path d="M15 17l2 2 3-4"/>',
     people: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>',
     live: '<path d="M12 3l9.5 17H2.5z"/><path d="M12 10v4.5M12 17.5v.2"/>',
     debrief: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
@@ -990,7 +1062,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
   var SEV = { critique: 'Critique', moyen: 'Moyen', faible: 'Faible' };
   var INC_ST = { ouvert: 'Ouvert', encours: 'Pris en charge', resolu: 'Résolu' };
   var EV_TYPES = { conference: 'Conférence / culte spécial', seminaire: 'Séminaire / formation', concert: 'Concert / soirée', fete: 'Fête / mariage', sortie: 'Sortie / voyage', autre: 'Autre' };
-  var CATS = { equipe: 'Équipe / serviteur', membre: 'Membre', invite: 'Invité' };
+  var CATS = { equipe: 'Équipe / serviteur', membre: 'Membre', invite: 'Invité', public: 'Inscrit en ligne' };
 
   /* ---------- Modèle de préparation (savoir-faire d'organisation) ----------
      [équipe, couleur, [[mission, jours par rapport au début (négatif = avant), priorité, budget, [sous-tâches]]]] */
@@ -1265,7 +1337,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
 
   /* ---------- État ---------- */
   var state, ui = { view: null, teamId: null, open: {}, openSub: {}, mFilter: 'all', liveDay: null, liveTime: null, evOpen: false };
-  var EV_VIEWS = ['dash', 'teams', 'team', 'myteam', 'missions', 'program', 'meetings', 'budget', 'people', 'live', 'debrief', 'roles', 'notify'];
+  var EV_VIEWS = ['dash', 'teams', 'team', 'myteam', 'missions', 'program', 'meetings', 'budget', 'people', 'live', 'debrief', 'roles', 'notify', 'regs'];
   function seed() { var ev = demoEvent(); return migrate({ v: 2, eventId: ev.id, role: { kind: 'org' }, orgName: 'Cedric', events: [ev], catalog: [] }); }
   function load() {
     try {
@@ -1503,7 +1575,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     if (ON.on) {
       if (!curEv()) return [['home', 'Mes événements'], ['sep', ''], ['settings', 'Aide & réglages']];
       return [['home', 'Mes événements'], ['sep', curEv().name], ['dash', 'Vue d\'ensemble'], ['teams', 'Équipes'], ['roles', 'Répartition des rôles'], ['notify', 'Prévenir l\'équipe'], ['missions', 'Missions & tâches'], ['program', 'Programme'], ['meetings', 'Réunions'],
-        ['budget', 'Budget & finances'], ['people', 'Participants'], ['sep', 'Le jour J'], ['live', 'Jour J — en direct'], ['debrief', 'Bilan'], ['sep', ''], ['catalog', 'Équipes habituelles'], ['settings', 'Aide & réglages']];
+        ['budget', 'Budget & finances'], ['people', 'Participants'], ['regs', 'Inscriptions publiques'], ['sep', 'Le jour J'], ['live', 'Jour J — en direct'], ['debrief', 'Bilan'], ['sep', ''], ['catalog', 'Équipes habituelles'], ['settings', 'Aide & réglages']];
     }
     if (!ui.evOpen || !curEv()) return [['home', 'Tableau de bord'], ['catalog', 'Équipes habituelles'], ['sep', ''], ['settings', 'Aide & réglages']];
     return [['home', 'Tableau de bord'], ['catalog', 'Équipes habituelles'], ['sep', curEv().name], ['dash', 'Vue d\'ensemble'], ['teams', 'Équipes'], ['missions', 'Missions & tâches'], ['program', 'Programme'], ['meetings', 'Réunions'],
@@ -1571,10 +1643,11 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     if (!ui.view) ui.view = isOrg() ? (ON.on && ev ? 'dash' : 'home') : 'myteam';
     if (isOrg() && !ui.evOpen && EV_VIEWS.indexOf(ui.view) >= 0) ui.view = 'home';
     if (!ev && ui.view !== 'settings') ui.view = 'home';
-    if (!isOrg() && ['dash', 'teams', 'team', 'missions', 'budget', 'people', 'debrief', 'catalog', 'roles', 'notify'].indexOf(ui.view) >= 0) ui.view = 'myteam';
+    if (!isOrg() && ['dash', 'teams', 'team', 'missions', 'budget', 'people', 'debrief', 'catalog', 'roles', 'notify', 'regs'].indexOf(ui.view) >= 0) ui.view = 'myteam';
     if (!ON.on && !isOrg() && !catOf(state.role.catId)) state.role = { kind: 'org' };
     renderChrome(ev);
-    var V = { home: vHome, catalog: vCatalog, dash: vDash, teams: vTeams, team: vTeam, myteam: vTeam, missions: vMissions, program: vProgram, meetings: vMeetings, budget: vBudget, people: vPeople, live: vLive, debrief: vDebrief, settings: vSettings, roles: vRoles, notify: vNotify };
+    var V = { home: vHome, catalog: vCatalog, dash: vDash, teams: vTeams, team: vTeam, myteam: vTeam, missions: vMissions, program: vProgram, meetings: vMeetings, budget: vBudget, people: vPeople, live: vLive, debrief: vDebrief, settings: vSettings, roles: vRoles, notify: vNotify, regs: vRegs };
+    if (ON.on && isOrg() && ev && (ui.view === 'dash' || ui.view === 'people')) regAuto(); // v6.1 : nombre d'inscrits à jour
     $('#view').innerHTML = (ui.view !== 'home' && ui.view !== 'settings' ? answerBanner() : '') + (V[ui.view] || vDash)(ev);
     document.title = (ev && ui.evOpen ? ev.name + ' · ' : '') + 'Event Manager Pro';
   }
@@ -1621,7 +1694,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     var p = evProg(ev), r = readiness(ev), ph = phase(ev), d = diffDays(today(), ev.start);
     var doneM = ev.missions.filter(function (m) { return mProg(m) >= 100; }).length;
     var spent = sum(ev.expenses, 'amount'), pl = planned(ev);
-    var reg = ev.participants.filter(function (x) { return x.registered; }).length;
+    var reg = regCount(ev);
     var openInc = ev.incidents.filter(function (i) { return i.status !== 'resolu'; }).length;
     var when = ph === 'before' ? '<span>Début <b>' + (d === 0 ? "aujourd'hui" : 'dans ' + d + ' jour' + (d > 1 ? 's' : '')) + '</b></span>' : ph === 'live' ? '<span><b>L\'événement a lieu maintenant</b></span>' : '<span>Événement terminé</span>';
     var h = '<section class="hero"><div class="hero-l"><span class="eyebrow">' + esc(EV_TYPES[ev.type] || 'Événement') + '</span><h1>' + esc(ev.name) + '</h1>' +
@@ -2149,10 +2222,12 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
   }
 
   /* ---------- Vue : participants ---------- */
+  // v6.1 : une inscription en ligne peut compter plusieurs personnes (« 3 personnes »).
+  function regCount(ev) { return sum(ev.participants.filter(function (x) { return x.registered; }), function (x) { return x.people || 1; }); }
   function vPeople(ev) {
     var days = daysRange(ev.start, ev.end);
     var h = vhead('Participants & présences', 'Qui vient, qui a invité qui, et qui était là chaque jour.', btn('+ Ajouter une personne', 'new-person', 'btn-primary'));
-    var reg = ev.participants.filter(function (x) { return x.registered; }).length;
+    var reg = regCount(ev);
     h += '<div class="kpis"><div class="kpi"><b>' + ev.participants.length + '</b><span>personnes sur la liste</span></div><div class="kpi"><b>' + reg + (ev.expected ? '/' + ev.expected : '') + '</b><span>inscrites' + (ev.expected ? ' / attendues' : '') + '</span></div>' +
       days.slice(0, 2).map(function (d) { return '<div class="kpi"><b>' + ev.participants.filter(function (x) { return x.days && x.days[d]; }).length + '</b><span>présentes · ' + fmtDate(d) + '</span></div>'; }).join('') + '</div>';
     if (!ev.participants.length) return h + '<div class="mt">' + empty('La liste est vide.') + '</div>';
@@ -2313,6 +2388,14 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     ['program', '⏱️ Programme et participants', [
       'Le <b>Programme</b> donne chaque moment de l\'événement, jour par jour, avec l\'équipe responsable.',
       '<b>Participants</b> (organisateur) : qui vient, qui a invité qui, qui est inscrit, et qui était présent chaque jour.'
+    ]],
+    ['regs', '📝 Inscriptions publiques (lien pour tout le monde)', [
+      'Dans l\'événement, rubrique <b>« Inscriptions publiques »</b> (organisateur) : créez le lien, puis <b>« Ouvrir les inscriptions »</b>.',
+      'Envoyez le lien sur WhatsApp ou imprimez le <b>QR code</b> sur le flyer. Les gens s\'inscrivent <b>sans compte</b> : nom, WhatsApp ou e-mail, nombre de personnes.',
+      'Les places sont les <b>« Personnes attendues »</b>. Le public voit seulement le nombre d\'inscrits (jamais les noms). Quand c\'est complet, on s\'inscrit sur la <b>liste d\'attente</b>.',
+      'Quand quelqu\'un annule, la liste d\'attente avance toute seule. L\'organisateur voit « à prévenir » et envoie un message WhatsApp en un clic.',
+      'Chaque inscrit reçoit un <b>lien personnel</b> pour voir son inscription ou l\'annuler. La liste s\'exporte pour Excel. Tout est effacé 3 mois après l\'événement.',
+      'Les inscrits confirmés arrivent aussi dans <b>« Participants »</b>, pour le pointage du jour J.'
     ]],
     ['live', '🎤 Le jour J et le bilan', [
       '<b>« Jour J — en direct »</b> montre le moment en cours et le suivant.',
@@ -4335,8 +4418,358 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     });
   }
 
+  /* ----- v6.1 : inscriptions publiques (comme Guestoo) -----
+     Chaque événement peut avoir un lien « ?inscription=CODE ». N'importe qui l'ouvre, SANS compte, et s'inscrit :
+     nom, WhatsApp ou e-mail, nombre de personnes. Le public voit seulement le nombre d'inscrits et de places.
+     Places = « Personnes attendues ». Complet : liste d'attente, qui avance toute seule quand quelqu'un annule.
+     Chaque inscrit garde un lien personnel (« &ma=… ») pour voir son inscription ou l'annuler.
+     L'organisateur voit la liste, prévient sur WhatsApp, exporte en CSV ; les inscrits confirmés vont dans « Participants ». */
+  var QR_LIB = 'https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js';
+  var REG_ERR = {
+    closed: 'Les inscriptions sont fermées pour le moment.',
+    deadline: 'Les inscriptions sont closes : la date limite est passée.',
+    over: 'Cet événement est terminé.',
+    notfound: 'Ce lien d\'inscription n\'existe pas ou n\'existe plus.',
+    consent: 'Cochez la case d\'accord pour continuer.',
+    name: 'Indiquez votre prénom et votre nom.',
+    phone: 'Ce numéro WhatsApp n\'est pas valide (exemple : +49 151 23456789).',
+    email: 'Cette adresse e-mail n\'est pas valide.',
+    contact: 'Indiquez votre numéro WhatsApp ou votre e-mail (au moins un des deux).',
+    people: 'Le nombre de personnes doit être entre 1 et 10.',
+    busy: 'Beaucoup d\'inscriptions en ce moment : réessayez dans quelques minutes.',
+    already: 'Vous êtes déjà inscrit(e) avec ce numéro ou cette adresse e-mail.',
+    forbidden: 'Seul l\'organisateur peut voir la liste des inscrits.'
+  };
+  function regErr(e) {
+    var raw = String((e && (e.message || e.error_description)) || e || ''), m = /EMP_REG:(\w+)/.exec(raw);
+    if (m && REG_ERR[m[1]]) return REG_ERR[m[1]];
+    if (/reg_links|registrations|emp_reg|emp_register/i.test(raw) && /does not exist|schema cache|Could not find/i.test(raw)) return 'sql';
+    return Cloud.frErr(e);
+  }
+  function regDates(s, e) {
+    if (!s) return '';
+    return fmtDate(s, true) + (e && e !== s ? ' au ' + fmtDate(e, true) : '');
+  }
+  function regPeople(n) { return plur(n || 1, 'personne', 'personnes'); }
+  var regLinkOf = function (code) { return location.origin + location.pathname + '?inscription=' + code; };
+  var regMineOf = function (code, tok) { return regLinkOf(code) + '&ma=' + tok; };
+  function loadScript(src) {
+    return new Promise(function (res, rej) {
+      var s = document.createElement('script'); s.src = src; s.async = true;
+      s.onload = function () { res(); }; s.onerror = function () { rej(new Error('Pas de connexion internet.')); };
+      document.head.appendChild(s);
+    });
+  }
+  /* Fichier calendrier (.ics) : la personne ajoute l'événement à son agenda. */
+  function regIcs(name, s, e, place) {
+    var d = function (x) { return String(x).replace(/-/g, ''); }, t = function (x) { return String(x || '').replace(/[\;,]/g, function (c) { return '\\' + c; }).replace(/\n/g, '\\n'); };
+    var ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Event Manager Pro//FR', 'BEGIN:VEVENT', 'UID:' + uid('reg') + '@event-manager-pro',
+      'DTSTAMP:' + new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+/, ''), 'DTSTART;VALUE=DATE:' + d(s), 'DTEND;VALUE=DATE:' + d(addDays(e || s, 1)),
+      'SUMMARY:' + t(name), place ? 'LOCATION:' + t(place) : '', 'END:VEVENT', 'END:VCALENDAR'].filter(Boolean).join('\r\n');
+    return 'data:text/calendar;charset=utf-8,' + encodeURIComponent(ics);
+  }
+
+  /* ===== Page publique (sans compte) ===== */
+  var PUB = { el: null, code: '', tok: '', info: null, mine: null, done: null, err: '', busy: false, form: false };
+  function pubShow(html) {
+    if (!PUB.el) { PUB.el = document.createElement('div'); PUB.el.id = 'pub'; PUB.el.className = 'cloud pub'; document.body.appendChild(PUB.el); }
+    var logo = $('.brand-logo');
+    PUB.el.innerHTML = '<div class="cl-box pub-box"><div class="cl-brand pub-brand"><img src="' + (logo ? logo.src : '') + '" alt=""><div><b>Event Manager <span>Pro</span></b>' + (B.edition ? '<small>' + esc(B.edition) + '</small>' : '') + '</div></div>' + html +
+      '<p class="pub-foot">Inscription gérée avec Event Manager Pro. Vos données servent uniquement à l\'organisateur pour cet événement et sont effacées 3 mois après l\'événement.</p></div>';
+    PUB.el.hidden = false; document.body.classList.add('cl-open', 'pub-mode');
+  }
+  function pubEventHtml(i) {
+    var h = '<div class="pub-ev"><h1>' + esc(i.name || i.event || 'Événement') + '</h1>';
+    var dt = regDates(i.start, i.end);
+    if (dt) h += '<p class="pub-line">📅 ' + esc(dt) + '</p>';
+    if (i.place) h += '<p class="pub-line">📍 ' + esc(i.place) + '</p>';
+    if (i.description) h += '<p class="pub-desc">' + esc(i.description).replace(/\n/g, '<br>') + '</p>';
+    if (i.note) h += '<div class="cl-inv pub-note">' + esc(i.note).replace(/\n/g, '<br>') + '</div>';
+    return h + '</div>';
+  }
+  function pubCounter(i) {
+    var cap = i.capacity || 0, left = cap ? Math.max(0, cap - (i.seats || 0)) : 0;
+    if (!i.show_count) return i.full ? '<div class="pub-count full"><b>Complet</b><span>Vous pouvez vous inscrire sur la liste d\'attente.</span></div>' : '';
+    var h = '<div class="pub-count' + (i.full ? ' full' : '') + '"><div class="pub-num"><b>' + (i.seats || 0) + '</b>' + (cap ? '<em>/ ' + cap + '</em>' : '') + '</div><span>' +
+      (i.seats === 1 ? 'personne inscrite' : 'personnes inscrites') + (cap ? ' sur ' + cap + ' places' : '') + '</span>';
+    if (cap) h += bar(Math.round(100 * (i.seats || 0) / cap));
+    if (i.full) h += '<p class="pub-full">Complet' + (i.waiting ? ' · ' + plur(i.waiting, 'inscription', 'inscriptions') + ' en liste d\'attente' : '') + (PUB.done ? '.' : '. Inscrivez-vous sur la liste d\'attente : si une place se libère, vous passez automatiquement.') + '</p>';
+    else if (cap && i.seats && left <= 10) h += '<p class="pub-left">Plus que <b>' + plur(left, 'place', 'places') + '</b> !</p>';
+    return h + '</div>';
+  }
+  function pubFormHtml(i) {
+    var opts = ''; for (var n = 1; n <= 10; n++) opts += '<option value="' + n + '">' + regPeople(n) + '</option>';
+    return '<form class="cl-form pub-form" id="pub-form" novalidate><h2 class="cl-h">' + (i.full ? 'M\'inscrire sur la liste d\'attente' : 'Je m\'inscris') + '</h2>' +
+      '<label>Prénom et nom *<input name="name" autocomplete="name" maxlength="80" required></label>' +
+      '<label>Numéro WhatsApp <small>Pour recevoir les informations de l\'organisateur</small><input name="phone" type="tel" autocomplete="tel" inputmode="tel" placeholder="+49 151 23456789" maxlength="24"></label>' +
+      '<label>E-mail <small>Si vous n\'avez pas WhatsApp</small><input name="email" type="email" autocomplete="email" maxlength="120"></label>' +
+      '<label>Nombre de personnes (vous compris)<select name="people">' + opts + '</select></label>' +
+      '<label class="pub-hp" aria-hidden="true">Site web<input name="website" tabindex="-1" autocomplete="off"></label>' +
+      '<label class="cl-radio pub-consent"><input type="checkbox" name="consent"> <span>J\'accepte que mon nom et mon contact soient utilisés <b>uniquement par l\'organisateur</b>, pour cet événement. Ils sont effacés 3 mois après l\'événement, et je peux annuler à tout moment.</span></label>' +
+      '<p class="cl-err" id="pub-err">' + esc(PUB.err) + '</p>' +
+      '<button type="submit" class="btn btn-gold btn-lg"' + (PUB.busy ? ' disabled' : '') + '>' + (PUB.busy ? 'Envoi…' : i.full ? 'M\'inscrire sur la liste d\'attente' : 'Je m\'inscris') + '</button></form>';
+  }
+  function pubMineBox(code, tok, intro) {
+    var link = regMineOf(code, tok);
+    return '<div class="pub-mine"><p><b>' + intro + '</b></p><input class="cl-link" readonly value="' + esc(link) + '" onfocus="this.select()">' +
+      '<div class="m-actions">' + btn('Copier mon lien', 'cl-copy', '', ' data-l="' + esc(link) + '"') + btn('M\'envoyer ce lien sur WhatsApp', 'cl-wa', 'btn-gold', ' data-t="' + esc('Mon inscription : ' + link) + '"') + '</div></div>';
+  }
+  function pubRender() {
+    var i = PUB.info;
+    if (PUB.err === 'sql') return pubShow('<div class="cl-inv bad">Les inscriptions ne sont pas encore prêtes. L\'organisateur doit d\'abord mettre à jour la base de données.</div>');
+    if (PUB.mine) return pubRenderMine();
+    if (!i) return pubShow('<p class="muted cl-wait">Chargement…</p>');
+    if (!i.found) return pubShow('<div class="cl-inv bad">' + REG_ERR.notfound + '</div>');
+    var h = pubEventHtml(i) + pubCounter(i);
+    if (PUB.done) {
+      var d = PUB.done;
+      h += d.status === 'ok'
+        ? '<div class="pub-ok"><b>✅ C\'est noté !</b><p>Votre inscription est confirmée (n° ' + d.number + ', ' + regPeople(d.people) + '). À bientôt !</p></div>'
+        : '<div class="pub-wait"><b>⏳ Vous êtes sur la liste d\'attente</b><p>Rang <b>' + d.number + '</b>. Si une place se libère, vous passez automatiquement et l\'organisateur vous prévient.</p></div>';
+      h += pubMineBox(PUB.code, d.token, 'Gardez votre lien personnel : il sert à voir votre inscription ou à l\'annuler.');
+      if (i.start) h += '<a class="btn" href="' + regIcs(i.name, i.start, i.end, i.place) + '" download="evenement.ics">📅 Ajouter à mon agenda</a>';
+      h += btn('Inscrire une autre personne', 'pub-again', 'btn-ghost');
+      return pubShow(h);
+    }
+    if (!i.open) return pubShow(h + '<div class="cl-inv">' + (REG_ERR[i.why] || REG_ERR.closed) + '</div>');
+    var known = lsGet('emp_reg_' + PUB.code);
+    if (known && !PUB.form) h += '<div class="cl-inv pub-known">Vous vous êtes déjà inscrit(e) depuis cet appareil. <a href="' + esc(regMineOf(PUB.code, known)) + '">Voir mon inscription</a></div>';
+    pubShow(h + pubFormHtml(i));
+  }
+  function pubRenderMine() {
+    var m = PUB.mine;
+    if (!m.found) return pubShow('<div class="cl-inv bad">Cette inscription n\'existe plus (annulée ou effacée après l\'événement).</div>' + (PUB.code ? '<a class="btn" href="' + esc(regLinkOf(PUB.code)) + '">Voir la page de l\'événement</a>' : ''));
+    var st = m.status === 'ok' ? '<div class="pub-ok"><b>✅ Inscription confirmée</b><p>' + esc(m.name) + ' · ' + regPeople(m.people) + '</p></div>'
+      : m.status === 'wait' ? '<div class="pub-wait"><b>⏳ Liste d\'attente : rang ' + m.rank + '</b><p>' + esc(m.name) + ' · ' + regPeople(m.people) + '. Si une place se libère, vous passez automatiquement.</p></div>'
+        : '<div class="cl-inv">Inscription annulée.</div>';
+    var h = pubEventHtml(m) + st;
+    if (m.status !== 'cancelled') h += pubMineBox(m.code, PUB.tok, 'Votre lien personnel') + btn('Annuler mon inscription', 'pub-cancel', 'btn-danger');
+    h += '<a class="btn btn-ghost" href="' + esc(regLinkOf(m.code)) + '">Voir la page de l\'événement</a>';
+    pubShow(h);
+  }
+  function pubLoad() {
+    var p = PUB.tok ? Cloud.regStatus(PUB.tok).then(function (m) { PUB.mine = m || { found: false }; if (m && m.code) PUB.code = m.code; })
+      : Cloud.regInfo(PUB.code).then(function (i) { PUB.info = i || { found: false }; });
+    return p.then(pubRender, function (e) {
+      var m = regErr(e);
+      PUB.err = m;
+      if (m === 'sql') return pubRender();
+      pubShow('<div class="cl-inv bad">' + esc(Cloud.isNetErr(e) ? 'Pas de connexion internet.' : m) + '</div>' + btn('Réessayer', 'pub-retry', 'btn-gold'));
+    });
+  }
+  function pubStart(code, tok) {
+    PUB.code = (code || '').toLowerCase(); PUB.tok = tok || '';
+    document.title = 'Inscription · ' + (B.edition || 'Event Manager Pro');
+    pubShow('<p class="muted cl-wait">Chargement…</p>');
+    if (!Cloud.configured()) return pubShow('<div class="cl-inv bad">Cette application n\'est pas reliée au serveur : inscription impossible.</div>');
+    Cloud.init().then(pubLoad, function () { pubShow('<div class="cl-inv bad">Pas de connexion internet.</div>' + btn('Réessayer', 'pub-retry', 'btn-gold')); });
+  }
+  function pubSubmit(f) {
+    if (PUB.busy) return;
+    var v = function (n) { var x = f.querySelector('[name=' + n + ']'); return x ? (x.type === 'checkbox' ? x.checked : x.value.trim()) : ''; };
+    var data = { name: v('name'), phone: v('phone'), email: v('email'), people: +v('people') || 1, consent: v('consent') };
+    var err = data.name.length < 2 ? REG_ERR.name : !data.phone && !data.email ? REG_ERR.contact
+      : data.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(data.email) ? REG_ERR.email : !data.consent ? REG_ERR.consent : '';
+    var shown = $('#pub-err');
+    if (err) { if (shown) shown.textContent = err; return; }
+    if (v('website')) { PUB.done = { status: 'ok', number: '—', people: data.people, token: '' }; return pubRender(); } // robot : on fait semblant
+    PUB.busy = true; PUB.err = ''; PUB.saved = data;
+    var b = f.querySelector('button[type=submit]'); if (b) { b.disabled = true; b.textContent = 'Envoi…'; }
+    Cloud.register(PUB.code, data).then(function (r) {
+      PUB.busy = false; PUB.form = false;
+      PUB.done = { status: r.status, number: r.number, token: r.token, people: data.people };
+      lsSet('emp_reg_' + PUB.code, r.token);
+      return Cloud.regInfo(PUB.code).then(function (i) { PUB.info = i; }, noop).then(pubRender);
+    }, function (e) {
+      PUB.busy = false;
+      var m = regErr(e);
+      if (b) { b.disabled = false; b.textContent = PUB.info && PUB.info.full ? 'M\'inscrire sur la liste d\'attente' : 'Je m\'inscris'; }
+      if (shown) shown.textContent = m === 'sql' ? 'Les inscriptions ne sont pas encore prêtes.' : m;
+      if (/closed|deadline|over/.test(String(e && e.message))) Cloud.regInfo(PUB.code).then(function (i) { PUB.info = i; pubRender(); }, noop);
+    });
+  }
+  document.addEventListener('submit', function (e) { if (e.target.id === 'pub-form') { e.preventDefault(); pubSubmit(e.target); } });
+
+  /* ===== Côté organisateur : rubrique « Inscriptions publiques » ===== */
+  var REG = { sid: null, link: null, list: [], at: 0, busy: false, err: '' };
+  function regState() {
+    var sid = ON.space && ON.space.id;
+    if (REG.sid !== sid) { REG.sid = sid; REG.link = null; REG.list = []; REG.at = 0; REG.err = ''; }
+    return REG;
+  }
+  function regLoad(quiet) {
+    var R = regState();
+    if (!ON.on || !isOrg() || R.busy || !R.sid) return Promise.resolve();
+    R.busy = true;
+    var sid = R.sid;
+    return Cloud.regLink().then(function (l) {
+      return l ? Cloud.regList().then(function (list) { return [l, list]; }) : [null, []];
+    }).then(function (r) {
+      R.busy = false; if (REG.sid !== sid) return;
+      R.link = r[0]; R.list = r[1] || []; R.at = Date.now(); R.err = '';
+      regToParticipants(curEv(), R.list);
+      if (['regs', 'dash', 'people'].indexOf(ui.view) >= 0 && $('#modal').hidden) render();
+    }, function (e) {
+      R.busy = false; R.at = Date.now(); R.err = regErr(e);
+      if (ui.view === 'regs' && !quiet) render();
+    });
+  }
+  function regAuto() { var R = regState(); if (ON.on && isOrg() && !R.busy && Date.now() - R.at > 60000) setTimeout(function () { regLoad(true); }, 0); }
+  /* Les inscrits confirmés arrivent dans « Participants » (pour le pointage du jour J). */
+  function regToParticipants(ev, list) {
+    if (!ev || !isOrg()) return;
+    var ok = {}, changed = false;
+    list.forEach(function (r) { if (r.status === 'ok') ok[r.id] = r; });
+    ev.participants = ev.participants.filter(function (x) {
+      if (!x.regId || ok[x.regId]) return true;
+      var here = x.days && Object.keys(x.days).some(function (d) { return x.days[d]; });
+      if (!here) changed = true;
+      return here;
+    });
+    Object.keys(ok).forEach(function (id) {
+      var r = ok[id], x = ev.participants.filter(function (p) { return p.regId === id; })[0];
+      var note = 'Inscription en ligne' + (r.people > 1 ? ' · ' + r.people + ' personnes' : '');
+      if (!x) { ev.participants.push({ id: uid('u'), regId: id, name: r.name, cat: 'public', invitedBy: '', phone: r.phone || r.email || '', registered: true, days: {}, note: note, people: r.people }); changed = true; }
+      else if (x.people !== r.people || x.name !== r.name) { x.people = r.people; x.name = r.name; x.note = note; changed = true; }
+    });
+    if (changed) save();
+  }
+  function regSeats(st) { return sum(REG.list.filter(function (r) { return r.status === st; }), 'people'); }
+  function regWaText(ev, r) {
+    var when = ev.start ? ' (' + fmtDate(ev.start, true) + (ev.place ? ', ' + ev.place : '') + ')' : '';
+    if (r.status === 'wait') return 'Bonjour ' + r.name + ', vous êtes sur la liste d\'attente pour « ' + ev.name + ' »' + when + '. Nous vous prévenons dès qu\'une place se libère.';
+    if (r.promoted) return 'Bonjour ' + r.name + ', bonne nouvelle : une place s\'est libérée pour « ' + ev.name + ' »' + when + '. Votre inscription est confirmée' + (r.people > 1 ? ' pour ' + r.people + ' personnes' : '') + '. À bientôt !';
+    return 'Bonjour ' + r.name + ', merci pour votre inscription à « ' + ev.name + ' »' + when + '. À bientôt !';
+  }
+  function regShareText(ev, link) {
+    return '📣 ' + ev.name + (ev.start ? '\n📅 ' + regDates(ev.start, ev.end) : '') + (ev.place ? '\n📍 ' + ev.place : '') +
+      (ev.expected ? '\nPlaces limitées : ' + ev.expected + '.' : '') + '\n\nInscrivez-vous ici (sans compte, 1 minute) :\n' + link;
+  }
+  function regRow(ev, r, n) {
+    var contact = (r.phone ? '<button class="linkish" data-act="reg-wa" data-id="' + r.id + '" title="Écrire sur WhatsApp">💬 ' + esc(r.phone) + '</button>' : '') +
+      (r.email ? '<a href="mailto:' + esc(r.email) + '">✉️ ' + esc(r.email) + '</a>' : '');
+    var chips = (r.status === 'ok' && r.promoted ? (r.told ? '<span class="chip ok">Sorti de la liste d\'attente · prévenu</span>' : '<span class="chip warn">Sorti de la liste d\'attente · à prévenir</span>') : '');
+    var acts = '';
+    if (r.status === 'ok' && r.promoted && !r.told) acts += btn('✓ Prévenu', 'reg-told', 'btn-sm', ' data-id="' + r.id + '"');
+    if (r.status === 'wait') acts += btn('Confirmer quand même', 'reg-confirm', 'btn-sm', ' data-id="' + r.id + '" title="Donner une place même si c\'est complet"');
+    if (r.status !== 'cancelled') acts += btn('Supprimer', 'reg-del', 'btn-sm btn-ghost', ' data-id="' + r.id + '"');
+    return '<div class="reg-row"><span class="reg-n">' + n + '</span><div class="reg-main"><b>' + esc(r.name) + '</b> <span class="chip">' + regPeople(r.people) + '</span> ' + chips +
+      '<div class="reg-c">' + contact + '<small class="muted">' + (r.status === 'cancelled' ? 'Annulé le ' + fmtStamp(r.cancelled_at) : 'Inscrit le ' + fmtStamp(r.created_at)) + '</small></div></div>' +
+      (acts ? '<div class="reg-acts">' + acts + '</div>' : '') + '</div>';
+  }
+  function vRegs(ev) {
+    var R = regState();
+    var h = vhead('Inscriptions publiques', 'Un lien pour que tout le monde s\'inscrive à l\'événement, <b>sans compte</b>. Mettez-le sur le flyer (QR code) ou envoyez-le sur WhatsApp.',
+      R.link ? btn('↻ Actualiser', 'reg-refresh', 'btn-ghost') : '');
+    if (!ON.on) return h + '<div class="card">' + empty('Les inscriptions publiques marchent avec un compte en ligne. Connectez-vous dans « Aide & réglages ».') + '</div>';
+    if (R.err === 'sql') return h + '<div class="card"><div class="cl-inv bad">La base de données n\'est pas encore à jour pour les inscriptions : lancez une fois le script <b>SQL v6.1</b> dans Supabase (SQL Editor), puis rechargez la page.</div></div>';
+    if (!R.at) { regAuto(); if (!R.busy) setTimeout(function () { regLoad(); }, 0); return h + '<div class="card"><p class="muted">Chargement…</p></div>'; }
+    if (R.err) h += '<div class="cl-inv bad mb">' + esc(R.err) + '</div>';
+    if (!R.link) return h + '<div class="card new-ev-empty"><h2>Pas encore de lien d\'inscription</h2><p class="muted">Créez le lien, puis ouvrez les inscriptions. Les places sont les « Personnes attendues » de l\'événement' + (ev.expected ? ' (' + ev.expected + ')' : '') + ' ; quand c\'est complet, les suivants vont en liste d\'attente.</p><div class="mt">' + btn('Créer le lien d\'inscription', 'reg-create', 'btn-gold btn-lg') + '</div></div>';
+    var L = R.link, link = regLinkOf(L.code), cap = Number(ev.expected) || 0, seats = regSeats('ok');
+    var ok = R.list.filter(function (r) { return r.status === 'ok'; }), wait = R.list.filter(function (r) { return r.status === 'wait'; }), gone = R.list.filter(function (r) { return r.status === 'cancelled'; });
+    var tell = ok.filter(function (r) { return r.promoted && !r.told; });
+    var past = L.deadline && L.deadline < today();
+    var stChip = !L.open ? '<span class="chip">Fermé</span>' : past ? '<span class="chip warn">Date limite passée</span>' : '<span class="chip ok">● Ouvert</span>';
+    h += '<div class="kpis"><div class="kpi gold"><b>' + seats + (cap ? '/' + cap : '') + '</b><span>' + (cap ? 'personnes inscrites / places' : 'personnes inscrites') + '</span>' + (cap ? bar(Math.round(100 * seats / cap)) : '') + '</div>' +
+      '<div class="kpi"><b>' + ok.length + '</b><span>' + (ok.length > 1 ? 'inscriptions' : 'inscription') + '</span></div>' +
+      '<div class="kpi' + (wait.length ? ' warnk' : '') + '"><b>' + regSeats('wait') + '</b><span>' + (regSeats('wait') > 1 ? 'personnes' : 'personne') + ' en liste d\'attente</span></div>' +
+      '<div class="kpi"><b>' + (cap ? Math.max(0, cap - seats) : '∞') + '</b><span>' + (cap && cap - seats === 1 ? 'place libre' : 'places libres') + '</span></div></div>';
+    h += '<div class="card mt reg-link"><div class="reg-top"><h2>Le lien d\'inscription</h2>' + stChip + '<span class="sp"></span>' +
+      btn(L.open ? 'Fermer les inscriptions' : 'Ouvrir les inscriptions', 'reg-toggle', L.open ? 'btn-ghost' : 'btn-gold') + '</div>' +
+      (L.open ? '' : '<p class="small muted">Tant que c\'est fermé, la page s\'affiche mais personne ne peut s\'inscrire.</p>') +
+      '<input class="cl-link" readonly value="' + esc(link) + '" onfocus="this.select()">' +
+      '<div class="m-actions">' + btn('Envoyer sur WhatsApp', 'cl-wa', 'btn-gold', ' data-t="' + esc(regShareText(ev, link)) + '"') + btn('Copier le lien', 'cl-copy', '', ' data-l="' + esc(link) + '"') +
+      btn('QR code pour le flyer', 'reg-qr', '') + '<a class="btn" href="' + esc(link) + '" target="_blank" rel="noopener">Voir la page</a></div>' +
+      '<div class="reg-set"><span>Places : <b>' + (cap || 'illimitées') + '</b></span><span>Date limite : <b>' + (L.deadline ? fmtDate(L.deadline) : 'aucune') + '</b></span><span>Compteur visible par le public : <b>' + (L.show_count ? 'oui' : 'non') + '</b></span>' +
+      btn('✎ Régler', 'reg-settings', 'btn-sm') + '</div></div>';
+    if (tell.length) h += '<div class="cl-inv mt"><b>' + plur(tell.length, 'personne est sortie', 'personnes sont sorties') + ' de la liste d\'attente.</b> Prévenez-les sur WhatsApp (bouton 💬), puis touchez « ✓ Prévenu ».</div>';
+    h += '<div class="card mt"><div class="reg-top"><h2>Inscrits (' + ok.length + ')</h2><span class="sp"></span>' + (R.list.length ? btn('⬇ Exporter (Excel)', 'reg-csv', 'btn-sm') : '') + '</div>' +
+      (ok.length ? ok.map(function (r, i) { return regRow(ev, r, i + 1); }).join('') : empty(L.open ? 'Personne pour le moment. Partagez le lien !' : 'Ouvrez les inscriptions, puis partagez le lien.')) + '</div>';
+    if (wait.length) h += '<div class="card mt"><h2>Liste d\'attente (' + wait.length + ')</h2><p class="small muted">Dans l\'ordre d\'arrivée. Quand une place se libère, la première personne qui tient dans les places restantes passe automatiquement.</p>' +
+      wait.map(function (r, i) { return regRow(ev, r, i + 1); }).join('') + '</div>';
+    if (gone.length) h += '<details class="card mt reg-gone"><summary><b>Annulations (' + gone.length + ')</b></summary>' + gone.map(function (r, i) { return regRow(ev, r, i + 1); }).join('') + '</details>';
+    h += '<p class="small muted mt">🔒 Le public voit seulement le nombre d\'inscrits, jamais les noms. Seul l\'organisateur voit cette liste. Chaque inscrit a un lien personnel pour annuler. Tout est effacé 3 mois après l\'événement. Les inscrits confirmés apparaissent aussi dans « Participants » pour le pointage du jour J.</p>';
+    return h;
+  }
+  function regFind(el) { var id = el.getAttribute('data-id'); return REG.list.filter(function (r) { return r.id === id; })[0]; }
+  function regDo(p, msg) { return p.then(function () { if (msg) toast(msg); REG.at = 0; return regLoad(); }, function (e) { var m = regErr(e); toast(m === 'sql' ? 'Lancez d\'abord le script SQL v6.1 dans Supabase.' : m); render(); }); }
+  function regQr(link, ev) {
+    openForm('QR code pour le flyer', [{ type: 'note', k: '_n', html: '<div class="reg-qr" id="reg-qr"><p class="muted">Préparation du QR code…</p></div><p class="small muted">Imprimez-le sur le flyer ou l\'affiche : on le scanne avec l\'appareil photo du téléphone, et la page d\'inscription s\'ouvre.</p>' }], {}, function () {}, { saveLabel: 'Fermer' });
+    (window.qrcode ? Promise.resolve() : loadScript(QR_LIB)).then(function () {
+      var qr = window.qrcode(0, 'M'); qr.addData(link); qr.make();
+      var n = qr.getModuleCount(), cell = 12, m = 4, size = (n + 2 * m) * cell, c = document.createElement('canvas');
+      c.width = c.height = size;
+      var g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, size, size); g.fillStyle = '#0A1230';
+      for (var r = 0; r < n; r++) for (var k = 0; k < n; k++) if (qr.isDark(r, k)) g.fillRect((k + m) * cell, (r + m) * cell, cell, cell);
+      var url = c.toDataURL('image/png'), box = $('#reg-qr');
+      if (box) box.innerHTML = '<img src="' + url + '" alt="QR code du lien d\'inscription"><a class="btn btn-gold" href="' + url + '" download="QR_inscription_' + esc(fileName(ev.name)) + '.png">⬇ Télécharger l\'image</a>';
+    }, function () { var box = $('#reg-qr'); if (box) box.innerHTML = '<p class="cl-err">QR code indisponible sans internet.</p>'; });
+  }
+  var fileName = function (s) { return String(s || 'evenement').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\w-]+/g, '_').replace(/^_+|_+$/g, ''); };
+  function regCsv(ev) {
+    var q = function (v) { v = String(v == null ? '' : v); if (/^[=+\-@]/.test(v)) v = "'" + v; return '"' + v.replace(/"/g, '""') + '"'; };
+    var st = { ok: 'Confirmé', wait: 'Liste d\'attente', cancelled: 'Annulé' };
+    var rows = [['Statut', 'Nom', 'Personnes', 'WhatsApp', 'E-mail', 'Inscrit le', 'Annulé le']].concat(REG.list.map(function (r) {
+      return [st[r.status] + (r.promoted && r.status === 'ok' ? ' (sorti de la liste d\'attente)' : ''), r.name, r.people, r.phone, r.email, fmtStamp(r.created_at), r.cancelled_at ? fmtStamp(r.cancelled_at) : ''];
+    }));
+    var blob = new Blob(['﻿' + rows.map(function (r) { return r.map(q).join(';'); }).join('\r\n')], { type: 'text/csv;charset=utf-8' });
+    var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'Inscriptions_' + fileName(ev.name) + '_' + today() + '.csv';
+    document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  }
+  Object.assign(ACT, {
+    'pub-again': function () { PUB.done = null; PUB.form = true; PUB.err = ''; pubRender(); },
+    'pub-retry': function () { PUB.err = ''; pubStart(PUB.code, PUB.tok); },
+    'pub-cancel': function (el) {
+      if (!confirm('Annuler votre inscription ? Votre place sera donnée à la personne suivante.')) return;
+      el.disabled = true;
+      Cloud.regCancel(PUB.tok).then(function () { lsDel('emp_reg_' + PUB.code); return pubLoad(); }, function (e) { el.disabled = false; toast(regErr(e)); });
+    },
+    'reg-refresh': function () { REG.at = 0; regLoad(); },
+    'reg-create': function (el) { el.disabled = true; regDo(Cloud.regCreate(), 'Lien créé. Ouvrez les inscriptions quand vous êtes prêt.'); },
+    'reg-toggle': function (el) {
+      var open = !REG.link.open;
+      if (open && !curEv().expected && !confirm('Aucun nombre de places (« Personnes attendues ») : les inscriptions seront illimitées. Continuer ?')) return;
+      el.disabled = true; regDo(Cloud.regSave({ open: open }), open ? 'Inscriptions ouvertes.' : 'Inscriptions fermées.');
+    },
+    'reg-settings': function (el, ev) {
+      var L = REG.link;
+      openForm('Régler les inscriptions', [
+        { k: 'expected', label: 'Nombre de places', type: 'number', half: true, hint: 'C\'est aussi « Personnes attendues ». Vide ou 0 = illimité.' },
+        { k: 'deadline', label: 'Date limite d\'inscription', type: 'date', half: true, hint: 'Vide = jusqu\'à l\'événement.' },
+        { k: 'show_count', label: 'Montrer au public le nombre d\'inscrits et de places', type: 'checkbox' },
+        { k: 'note', label: 'Message sur la page d\'inscription', type: 'textarea', rows: 3, ph: 'Ex. : Entrée gratuite. Venez 15 minutes avant le début.' }
+      ], { expected: ev.expected || '', deadline: L.deadline || '', show_count: L.show_count, note: L.note || '' }, function (v) {
+        var cap = Math.max(0, Math.floor(Number(v.expected) || 0));
+        if (cap !== (Number(ev.expected) || 0)) { ev.expected = cap; log(ev, 'a fixé ' + (cap || 'un nombre illimité de') + ' places pour les inscriptions.'); save(); }
+        regDo(Cloud.regSave({ deadline: v.deadline || null, show_count: !!v.show_count, note: String(v.note || '').slice(0, 600) }), 'Réglages enregistrés.');
+      });
+    },
+    'reg-qr': function (el, ev) { if (REG.link) regQr(regLinkOf(REG.link.code), ev); },
+    'reg-csv': function (el, ev) { regCsv(ev); },
+    'reg-wa': function (el, ev) {
+      var r = regFind(el); if (!r) return;
+      wa(regWaText(ev, r), r.phone);
+      if (r.status === 'ok' && r.promoted && !r.told) regDo(Cloud.regUpdate(r.id, { told: true }));
+    },
+    'reg-told': function (el) { var r = regFind(el); if (r) { el.disabled = true; regDo(Cloud.regUpdate(r.id, { told: true })); } },
+    'reg-confirm': function (el) {
+      var r = regFind(el); if (!r || !confirm('Donner une place à ' + r.name + ' (' + regPeople(r.people) + ') même si c\'est complet ?')) return;
+      el.disabled = true; regDo(Cloud.regUpdate(r.id, { status: 'ok', promoted: true, told: false }), r.name + ' est confirmé(e). Prévenez-le sur WhatsApp.');
+    },
+    'reg-del': function (el) {
+      var r = regFind(el); if (!r || !confirm('Supprimer l\'inscription de ' + r.name + ' ? Sa place sera donnée à la personne suivante en liste d\'attente.')) return;
+      el.disabled = true; regDo(Cloud.regDelete(r.id), 'Inscription supprimée.');
+    }
+  });
+  // La liste se met à jour toute seule toutes les 30 secondes quand la rubrique est ouverte.
+  setInterval(function () { if (ui.view === 'regs' && ON.on && !document.hidden && $('#modal').hidden && !REG.busy) regLoad(true); }, 30000);
+
   /* ----- Démarrage ----- */
   function cloudStart() {
+    // v6.1 : page publique d'inscription (sans compte) : on n'ouvre pas l'application.
+    var pm = /[?&]inscription=([A-Za-z0-9]{4,40})/.exec(location.search), pt = /[?&]ma=([0-9a-fA-F-]{36})/.exec(location.search);
+    if (pm || pt) { pubStart(pm ? pm[1] : '', pt ? pt[1] : ''); return; }
     var m = /[?&]invite=([A-Za-z0-9]+)/.exec(location.search);
     if (m) {
       try { sessionStorage.setItem('emp_invite', m[1].toUpperCase()); } catch (e) { CL.invite = m[1].toUpperCase(); }
