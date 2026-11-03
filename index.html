@@ -907,8 +907,11 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     setMember: function (uid, fields) { return sb.from('members').update(fields).eq('space_id', spaceId).eq('user_id', uid).then(must); },
     teamMembers: function () { return sb.from('member_teams').select('*').eq('space_id', spaceId).then(must); },
     // ask = nouveau rôle : en brouillon jusqu'à la publication, puis la personne répond oui ou non (v5.5)
-    setTeam: function (uid, catId, role, catName, ask) {
+    // self = l'organisateur se met lui-même dans une équipe : rôle actif et accepté tout de suite (v6.0)
+    setTeam: function (uid, catId, role, catName, ask, self) {
       var r = { space_id: spaceId, user_id: uid, cat_id: catId, role: role }; if (catName != null) r.cat_name = catName;
+      if (self) return sb.from('member_teams').upsert(Object.assign({ status: 'active', answer: 'yes', answered_at: new Date().toISOString() }, r), { onConflict: 'space_id,user_id,cat_id' }).then(must)
+        .catch(function (e) { if (/status|answer|column|schema cache/i.test(String((e && e.message) || e))) return sb.from('member_teams').upsert(r, { onConflict: 'space_id,user_id,cat_id' }).then(must); throw e; });
       var up = function (x) { return sb.from('member_teams').upsert(x, { onConflict: 'space_id,user_id,cat_id' }).then(must); };
       if (!ask) return up(r);
       var r2 = Object.assign({ status: 'draft', answer: null, answered_at: null }, r);
@@ -937,7 +940,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     regCancel: function (token) { return sb.rpc('emp_reg_cancel', { p_token: token }).then(must); },
     // Organisateur : réglages du lien et liste des inscrits de l'événement ouvert
     regLink: function () { return sb.from('reg_links').select('*').eq('space_id', spaceId).then(must).then(function (r) { return r[0] || null; }); },
-    regCreate: function () { return sb.from('reg_links').insert({ space_id: spaceId }).select('*').then(must).then(function (r) { return r[0]; }); },
+    regCreate: function (slug) { return sb.from('reg_links').insert(slug ? { space_id: spaceId, slug: slug } : { space_id: spaceId }).select('*').then(must).then(function (r) { return r[0]; }); },
     regSave: function (fields) { return sb.from('reg_links').update(fields).eq('space_id', spaceId).select('*').then(must).then(function (r) { return r[0]; }); },
     regList: function () {
       return sb.rpc('emp_reg_refresh', { p_space: spaceId }).then(must).then(function () {
@@ -948,16 +951,16 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     regDelete: function (id) { return sb.from('registrations').delete().eq('id', id).eq('space_id', spaceId).then(must); },
 
     /* ----- Éléments ----- */
-    loadItems: function () {
-      var out = [], size = 1000;
+    loadItems: function (sid) {
+      var out = [], size = 1000; sid = sid || spaceId;
       function page(from) {
-        return sb.from('items').select('kind, id, event_id, cat_id, data, updated_at').eq('space_id', spaceId).neq('kind', 'log').order('kind').order('id').range(from, from + size - 1).then(must).then(function (rows) {
+        return sb.from('items').select('kind, id, event_id, cat_id, data, updated_at').eq('space_id', sid).neq('kind', 'log').order('kind').order('id').range(from, from + size - 1).then(must).then(function (rows) {
           out = out.concat(rows);
           return rows.length === size ? page(from + size) : null;
         });
       }
       return page(0).then(function () {
-        return sb.from('items').select('kind, id, event_id, cat_id, data, updated_at').eq('space_id', spaceId).eq('kind', 'log').order('updated_at', { ascending: false }).limit(400).then(must);
+        return sb.from('items').select('kind, id, event_id, cat_id, data, updated_at').eq('space_id', sid).eq('kind', 'log').order('updated_at', { ascending: false }).limit(400).then(must);
       }).then(function (logs) { return out.concat(logs); });
     },
     upsert: function (rows) {
@@ -999,7 +1002,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
   'use strict';
 
   var B = window.BRAND || {};
-  var APP_VERSION = '6.0';
+  var APP_VERSION = '6.1';
   var KEY = B.storageKey || 'emp_v2';
 
   /* ---------- Outils ---------- */
@@ -1664,7 +1667,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     var evs = state.events.slice().sort(function (a, b) { return a.start < b.start ? -1 : 1; });
     var up = evs.filter(function (e) { return phase(e) !== 'after'; }), past = evs.filter(function (e) { return phase(e) === 'after'; });
     var h = vhead('Tableau de bord', 'Tous vos événements en un coup d\'œil. Cliquez sur un événement pour voir tous ses détails.', isOrg() ? btn('+ Nouvel événement', 'new-event', 'btn-gold btn-lg') : '');
-    if (!evs.length) return h + '<div class="card new-ev-empty"><h2>Aucun événement pour le moment</h2><p class="muted">Créez votre premier événement : l\'application propose déjà les équipes et les missions habituelles.</p><div class="mt">' + btn('+ Créer mon premier événement', 'new-event', 'btn-gold btn-lg') + '</div></div>';
+    if (!evs.length) return h + '<div class="card new-ev-empty"><h2>Aucun événement pour le moment</h2><p class="muted">Créez votre premier événement : vous choisissez les équipes, puis vous ajoutez vos missions.</p><div class="mt">' + btn('+ Créer mon premier événement', 'new-event', 'btn-gold btn-lg') + '</div></div>';
     var live = evs.filter(function (e) { return phase(e) === 'live'; }).length;
     h += '<div class="kpis"><div class="kpi"><b>' + up.filter(function (e) { return phase(e) === 'before'; }).length + '</b><span>à venir</span></div>' +
       '<div class="kpi' + (live ? ' gold' : '') + '"><b>' + live + '</b><span>en cours aujourd\'hui</span></div>' +
@@ -2335,7 +2338,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
       'Une même personne peut être dans <b>plusieurs équipes</b> (chef ici, membre là). Elle choisit l\'équipe affichée en haut à gauche, dans « Mes équipes ».'
     ]],
     ['event', '📅 Créer un événement', [
-      'Dans « Mes événements », cliquez sur <b>« + Nouvel événement »</b> : nom, dates, lieu, nombre de personnes attendues, budget.',
+      'Dans « Mes événements », cliquez sur <b>« + Nouvel événement »</b>. Il commence <b>vide</b> (aucune mission déjà remplie). Pour une nouvelle édition, choisissez <b>« Comme … »</b> : informations, équipes, missions, tâches, programme et personnes de l\'ancien événement sont repris avec les nouvelles dates.',
       'Les équipes, les chefs et les membres du dernier événement sont repris tout seuls, en brouillon. Vous gardez ou changez ce que vous voulez.',
       '<b>Équipes habituelles</b> : vos équipes de service d\'un événement à l\'autre. Changer une équipe dans un événement ne change pas cette liste.',
       'Après l\'événement, <b>« Réutiliser pour un prochain événement »</b> (dans le Bilan) en fait un modèle.'
@@ -2495,6 +2498,24 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
   /* ---------- Formulaires métier ---------- */
   var teamOptions = function (ev, general) { return (general ? [['', 'Général / plusieurs équipes']] : []).concat(ev.teams.map(function (t) { return [t.id, t.name + (t.lead ? ' (' + t.lead + ')' : '')]; })); };
 
+  /* v6.1 : un nouvel événement « semblable » reprend les équipes cochées, leurs missions, tâches et le programme de l'ancien,
+     avec les dates décalées. Tout ce qui s'est passé (tâches faites, OK, argent, participants, réunions, fichiers, bilan) repart à zéro. */
+  function copyFromEvent(e, F, catIds) {
+    var shift = diffDays(F.start, e.start), keep = {}, n = 0, mv = function (d) { return d ? addDays(d, shift) : d; };
+    F.teams.forEach(function (t) {
+      if (catIds.indexOf(t.catId) < 0) return;
+      var c = clone(t); c.ok = null; c.alloc = null; c.fin = null; keep[t.id] = 1; e.teams.push(c); n++;
+    });
+    F.missions.forEach(function (m) {
+      if (m.teamId && !keep[m.teamId]) return;
+      var c = clone(m);
+      c.deadline = mv(c.deadline); c.reqDate = mv(c.reqDate); c.alloc = null; c.done = false; c.answer = ''; c.createdAt = new Date().toISOString();
+      c.subtasks = (c.subtasks || []).map(function (x) { x.done = false; delete x.doneAt; delete x.doneBy; x.due = mv(x.due); return x; });
+      e.missions.push(c);
+    });
+    F.program.forEach(function (p) { if (p.teamId && !keep[p.teamId]) return; var c = clone(p); c.day = mv(c.day); c.done = false; e.program.push(c); });
+    return n;
+  }
   function formEvent(ev, opt) {
     var isNew = !ev; opt = opt || {};
     var cats = opt.catalog || state.catalog, clist = cats.filter(function (c) { return !c.hidden; });
@@ -2514,21 +2535,27 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     if (isNew && opt.note) fields.unshift({ type: 'note', k: '_src', html: opt.note });
     if (isNew) {
       fields.splice(opt.note ? 2 : 1, 0,
-        { k: 'teams', label: 'Équipes qui participent', type: 'checks', def: clist.map(function (c) { return c.id; }),
+        { k: 'teams', label: 'Équipes qui participent', type: 'checks', def: opt.from ? opt.from.teams.map(function (t) { return t.catId; }) : [],
           options: clist.map(function (c) { return [c.id, '<span class="dot" style="background:' + esc(c.color) + '"></span>' + esc(c.name) + (c.lead ? ' <small class="muted">(' + esc(c.lead) + ')</small>' : '')]; }),
-          hint: 'Décochez les équipes qui ne servent pas. Vous pourrez en ajouter ou en retirer après.' },
-        { k: 'tplM', label: 'Proposer les missions habituelles de chaque équipe (avec leurs tâches et des dates calculées)', type: 'checkbox', def: true });
+          hint: opt.from ? 'Les équipes de « ' + opt.from.name + ' » sont cochées, avec leurs missions et leurs tâches. Décochez celles qui ne servent pas.' : 'Cochez les équipes qui participent. Elles commencent sans mission : vous ajoutez les vôtres.' });
     } else {
       fields.unshift({ type: 'note', k: '_n', html: 'Si vous changez le <b>premier jour</b>, les dates des missions, des tâches, des demandes de budget et du programme se décalent avec lui.' });
     }
     var vals = ev ? ev : { type: 'conference', start: addDays(today(), 30), organizer: state.orgName };
+    // v6.1 : « à partir d'un événement semblable » : on reprend ses informations ; on choisit seulement les nouvelles dates.
+    if (!ev && opt.from) {
+      var F = opt.from, st = addDays(today(), 30), len = diffDays(F.start, F.end || F.start);
+      vals = { name: F.name, type: F.type, place: F.place, start: st, end: addDays(st, Math.max(0, len)), expected: F.expected, budget: F.budget, organizer: F.organizer || state.orgName,
+        paypal: F.paypal, goal: F.goal, description: F.description, okDeadline: '' };
+    }
     openForm(isNew ? 'Nouvel événement' : 'Modifier l\'événement', fields, vals, function (v) {
       var endSame = !isNew && (v.end || v.start) === (ev.end || ev.start), okSame = !isNew && v.okDeadline === ev.okDeadline;
       if (v.end && v.end < v.start && !endSame) v.end = v.start;
       if (isNew) {
         var e = blankEvent(v), n = 0;
         if (!v.okDeadline) e.okDeadline = addDays(e.start, -2);
-        cats.forEach(function (c) { if (v.teams.indexOf(c.id) >= 0) { addTeamToEvent(e, c, v.tplM); n++; } });
+        if (opt.from) n = copyFromEvent(e, opt.from, v.teams);
+        else cats.forEach(function (c) { if (v.teams.indexOf(c.id) >= 0) { addTeamToEvent(e, c, false); n++; } });
         log(e, 'a créé l\'événement avec ' + n + ' équipe(s).');
         if (opt.onCreate) { opt.onCreate(e); return; }
         state.events.push(e); state.eventId = e.id; ui.view = 'teams'; ui.evOpen = true;
@@ -2590,7 +2617,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     var free = catList().filter(function (c) { return !teamByCat(ev, c.id); });
     openForm('Ajouter une équipe à l\'événement', [
       { k: 'cat', label: 'Quelle équipe ?', type: 'select', options: free.map(function (c) { return [c.id, c.name + (c.lead ? ' (' + c.lead + ')' : '')]; }).concat([['new', '➕ Une nouvelle équipe…']]), def: free[0] ? free[0].id : 'new' },
-      { k: 'tplM', label: 'Proposer ses missions habituelles (si elle en a)', type: 'checkbox', def: true }
+      { k: 'tplM', label: 'Proposer ses missions habituelles (si elle en a)', type: 'checkbox', def: false }
     ], {}, function (v) {
       if (v.cat === 'new') { setTimeout(function () { formTeam(ev, null); }, 0); return false; }
       var c = catOf(v.cat), t = addTeamToEvent(ev, c, v.tplM);
@@ -2822,7 +2849,13 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     'close-modal': closeModal,
     'm-delete': function () { if (formCtx && formCtx.onDelete && formCtx.onDelete() !== false) { closeModal(); save(); render(); } },
     'open-event': function (el) { state.eventId = el.getAttribute('data-id'); ui.liveDay = null; ui.evOpen = true; save(); go(isOrg() ? 'dash' : 'myteam'); },
-    'new-event': function () { if (ON.on || (CL.el && !CL.el.hidden && Cloud.user())) return newEventOnline(); if (isOrg()) formEvent(null); },
+    'new-event': function () {
+      if (ON.on || (CL.el && !CL.el.hidden && Cloud.user())) return newEventOnline();
+      if (!isOrg()) return;
+      pickStart(state.events.map(function (e) { return { id: e.id, name: e.name, date: e.start }; }), function (id) {
+        formEvent(null, { from: id ? clone(state.events.filter(function (e) { return e.id === id; })[0]) : null });
+      });
+    },
     'edit-event': function (el, ev) {
       if (!isOrg()) return;
       var id = el.getAttribute('data-id'), e = id ? state.events.filter(function (x) { return x.id === id; })[0] : ev;
@@ -3772,10 +3805,36 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
       });
     }).catch(dfltSource);
   }
+  /* v6.1 : nouvel événement : vide par défaut, ou « à partir d'un événement semblable » (ex. 2e édition d'une conférence). */
+  function pickStart(list, cb) {
+    var opts = [['', 'Un événement vide (rien n\'est rempli)']].concat(list.slice().sort(function (a, b) { return (b.date || '') < (a.date || '') ? -1 : 1; })
+      .map(function (e) { return [e.id, 'Comme « ' + e.name + ' »' + (e.date ? ' (' + fmtDay(e.date) + ')' : '')]; }));
+    openForm('Nouvel événement', [
+      { type: 'note', k: '_n', html: '<p>Un nouvel événement commence <b>vide</b> : pas de missions ni de cases déjà remplies.</p><p class="small muted">Pour une nouvelle édition (ex. « Conférence des hommes, 2e édition »), choisissez l\'événement semblable : ses informations, ses équipes, leurs missions et tâches, le programme' + (ON.on ? ' et les personnes' : '') + ' sont repris, avec les nouvelles dates. Ce qui a déjà été fait (tâches cochées, OK, argent, participants, réunions) repart à zéro.</p>' },
+      { k: 'from', label: 'Partir de', type: 'select', options: opts }
+    ], { from: '' }, function (v) { setTimeout(function () { cb(v.from || ''); }, 0); return false; }, { saveLabel: 'Continuer' });
+  }
   function newEventOnline() {
-    pickSource().then(function (src) {
-      formEvent(null, { catalog: src.cats, note: src.space ? 'Les équipes, leurs chefs et leurs membres sont repris de « <b>' + esc(src.label) + '</b> ». Vous pourrez tout changer dans « Répartition des rôles ».' : 'Vous êtes l\'organisateur de cet événement. Ensuite, choisissez les chefs et les membres dans « Répartition des rôles ».',
-        onCreate: function (e) { spawnEvent(e, src); } });
+    var go = function (src, F) {
+      formEvent(null, { catalog: src.cats, from: F, note: F ? 'À partir de « <b>' + esc(F.name) + '</b> » : informations, équipes, missions, tâches, programme et personnes repris. Choisissez les nouvelles dates.' : 'Événement vide. Vous êtes l\'organisateur. Ensuite, choisissez les chefs et les membres dans « Répartition des rôles ».',
+        onCreate: function (e) { spawnEvent(e, F ? src : { space: null, cats: src.cats }); } });
+    };
+    loadEvents(false).then(function (list) { return list; }, function () { return []; }).then(function (list) {
+      var mine = list.filter(function (e) { return e.role === 'org'; });
+      pickStart(mine.map(function (e) { return { id: e.id, name: e.name, date: e.date }; }), function (sid) {
+        if (!sid) return pickSource().then(function (src) { go(src, null); });
+        toast('Chargement de l\'événement…');
+        var cur = ON.on && ON.space && ON.space.id === sid;
+        (cur ? Promise.resolve({ events: clone(state.events), catalog: clone(state.catalog) }) : Cloud.loadItems(sid).then(function (rows) {
+          var m = {}; rows.forEach(function (r) { m[rkey(r)] = r; }); var c = compose(m);
+          c.events.forEach(function (e) { e.missions.forEach(normMission); e.teams.forEach(function (t) { normTeam(t); normOk(t); }); });
+          return c;
+        })).then(function (c) {
+          var F = c.events[0];
+          if (!F) { toast('Cet événement est vide : création d\'un événement vide.'); return pickSource().then(function (src) { go(src, null); }); }
+          go({ space: sid, cats: c.catalog.length ? c.catalog : dfltSource().cats, label: F.name }, F);
+        }, function (x) { toast(Cloud.frErr(x)); });
+      });
     });
   }
   function spawnEvent(e, src) {
@@ -3848,7 +3907,8 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     var rdrafts = mt.filter(function (x) { var m = memOf(x.user_id); return x.status === 'draft' && m && m.status !== 'draft'; });
     var h = drafts.length || rdrafts.length ? '<div class="card roles-pub"><div><b>' + [drafts.length ? drafts.length + ' personne(s) en brouillon' : '', rdrafts.length ? rdrafts.length + ' nouveau(x) rôle(s) en brouillon' : ''].filter(Boolean).join(' et ') + '</b><p class="small">Rien n\'est encore visible. Quand tout est prêt, publiez : chaque personne verra son nouveau rôle et répondra oui ou non.</p></div>' + btn('Publier les rôles', 'roles-pub', 'btn-gold btn-lg') + '</div>'
       : '<div class="card roles-pub ok"><b>✓ Tout est publié.</b><p class="small">Chaque personne choisie voit l\'événement et son rôle. Les nouveaux ajouts passeront d\'abord en brouillon.</p></div>';
-    var dir = (ON.dir || []).filter(function (p) { return p.user_id !== me; }).sort(function (a, b) { return (a.name || '').localeCompare(b.name || ''); });
+    // v6.0 : l'organisateur est aussi dans la liste (il peut être chef ou membre d'une équipe).
+    var dir = (ON.dir || []).slice().sort(function (a, b) { return (a.name || '').localeCompare(b.name || ''); });
     var opts = function (exclude) { return dir.filter(function (p) { return exclude.indexOf(p.user_id) < 0; }).map(function (p) { return '<option value="' + p.user_id + '">' + esc(p.name || 'Sans nom') + '</option>'; }).join(''); };
     h += '<div class="grid g2 mt">' + ev.teams.map(function (t) {
       var rows = mt.filter(function (x) { return x.cat_id === t.catId; }).sort(function (a, b) { return (a.role === 'lead' ? 0 : 1) - (b.role === 'lead' ? 0 : 1); });
@@ -3862,7 +3922,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
         '<select class="roles-add" data-chg="roles-add" data-c="' + esc(t.catId) + '" aria-label="Ajouter une personne à ' + esc(t.name) + '"><option value="">+ Ajouter une personne…</option>' + opts(ids) + '</select></div>';
     }).join('') + '</div>';
     var orgs = ON.mem.filter(function (m) { return m.role === 'org'; });
-    h += '<div class="card mt"><h3>Organisateurs</h3><p class="small muted">Ils voient et modifient tout l\'événement.</p>' + orgs.map(function (m) { return '<div class="roles-row"><b>' + esc(m.user_id === me ? 'Vous' : personName(m.user_id)) + '</b>' + (m.user_id === me ? '' : stChip(m)) + '</div>'; }).join('') +
+    h += '<div class="card mt"><h3>Organisateurs</h3><p class="small muted">Ils voient et modifient tout l\'événement.</p>' + orgs.map(function (m) { return '<div class="roles-row"><b>' + esc(personName(m.user_id)) + '</b>' + (m.user_id === me ? '' : stChip(m)) + '</div>'; }).join('') +
       '<select class="roles-add" data-chg="roles-org" aria-label="Ajouter un co-organisateur"><option value="">+ Ajouter un co-organisateur…</option>' + opts(orgs.map(function (m) { return m.user_id; })) + '</select></div>';
     h += '<div class="card mt"><h3>Quelqu\'un n\'est pas dans la liste ?</h3><p class="small muted">La liste montre toutes les personnes inscrites dans l\'application. Si quelqu\'un ne l\'a pas encore, envoyez-lui un lien : il s\'inscrit et arrive directement dans l\'équipe choisie.</p>' + btn('🔗 Envoyer un lien d\'invitation', 'cl-invite', '') + '</div>';
     return h;
@@ -3936,6 +3996,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     x.role = role;
     if (ask) { x.status = 'draft'; x.answer = null; x.answered_at = null; }
   }
+  function selfOk(u, c) { var x = mtRow(u, c); if (x) { x.status = 'active'; x.answer = 'yes'; } }
   function mtDel(u, c) { if (ON.mt) ON.mt = ON.mt.filter(function (x) { return !(x.user_id === u && x.cat_id === c); }); }
   function memPut(u, role) {
     if (!ON.mem) ON.mem = [];
@@ -4298,14 +4359,17 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
       if (!u) return 'norender';
       var known = (ON.mem || []).some(function (m) { return m.user_id === u; });
       // v6.0 : la personne apparaît tout de suite, avec le choix Chef / Membre.
-      memPut(u, 'member'); mtPut(u, c, 'member', true); memFix(u); rosterSync();
-      rolesQueue(function () { return (known ? Promise.resolve() : Cloud.addPerson(u, personName(u), 'member')).then(function () { return Cloud.setTeam(u, c, 'member', t ? t.name : '', true); }).then(function () { return syncMember(u); }); }, personName(u) + ' ajouté(e) à « ' + (t ? t.name : '') + ' » comme membre. Choisissez « Chef » si besoin.');
+      // L'organisateur qui se met lui-même dans une équipe : rôle actif tout de suite, rien à accepter.
+      var self = Cloud.user() && u === Cloud.user().id;
+      memPut(u, 'member'); mtPut(u, c, 'member', !self); if (self) selfOk(u, c); memFix(u); rosterSync();
+      rolesQueue(function () { return (known ? Promise.resolve() : Cloud.addPerson(u, personName(u), 'member')).then(function () { return Cloud.setTeam(u, c, 'member', t ? t.name : '', !self, self); }).then(function () { return syncMember(u); }); }, (self ? 'Vous êtes dans' : personName(u) + ' ajouté(e) à') + ' « ' + (t ? t.name : '') + ' » comme membre. Choisissez « Chef » si besoin.');
       return 'norender';
     },
     'roles-role': function (el) {
       var u = el.getAttribute('data-u'), c = el.getAttribute('data-c'), r = el.value, t = teamByCat(curEv(), c);
-      mtPut(u, c, r, true); memFix(u); rosterSync();
-      rolesQueue(function () { return Cloud.setTeam(u, c, r, t ? t.name : '', true).then(function () { return syncMember(u); }); }, personName(u) + ' : ' + (r === 'lead' ? 'chef' : 'membre') + ' de « ' + (t ? t.name : '') + ' » (en brouillon : publiez, puis la personne confirme).');
+      var self = Cloud.user() && u === Cloud.user().id;
+      mtPut(u, c, r, !self); if (self) selfOk(u, c); memFix(u); rosterSync();
+      rolesQueue(function () { return Cloud.setTeam(u, c, r, t ? t.name : '', !self, self).then(function () { return syncMember(u); }); }, self ? 'Vous êtes ' + (r === 'lead' ? 'chef' : 'membre') + ' de « ' + (t ? t.name : '') + ' ».' : personName(u) + ' : ' + (r === 'lead' ? 'chef' : 'membre') + ' de « ' + (t ? t.name : '') + ' » (en brouillon : publiez, puis la personne confirme).');
       return 'norender';
     },
     'roles-org': function (el) {
@@ -4451,8 +4515,27 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     return fmtDate(s, true) + (e && e !== s ? ' au ' + fmtDate(e, true) : '');
   }
   function regPeople(n) { return plur(n || 1, 'personne', 'personnes'); }
-  var regLinkOf = function (code) { return location.origin + location.pathname + '?inscription=' + code; };
-  var regMineOf = function (code, tok) { return regLinkOf(code) + '&ma=' + tok; };
+  /* v6.1 : lien lisible avec le nom de l'événement : …/event-manager-pro-pamg/gala-de-noel/inscription (le fichier 404.html du site
+     renvoie ce chemin vers l'application). L'ancien lien « ?inscription=code » marche toujours. */
+  var appRoot = function () { return location.origin + location.pathname.replace(/[a-z0-9-]+\/inscription\/?$/i, '').replace(/[^/]*$/, ''); };
+  var regLinkOf = function (l) { return typeof l === 'object' && l && l.slug ? appRoot() + l.slug + '/inscription' : appRoot() + '?inscription=' + (l && l.code || l); };
+  var regMineOf = function (code, tok) { return appRoot() + '?inscription=' + code + '&ma=' + tok; };
+  function slugify(t) {
+    var s = String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    if (s.length > 50) s = s.slice(0, 50).replace(/-[^-]*$/, '');
+    return s.length >= 3 ? s : (s ? s + '-evenement' : 'evenement');
+  }
+  var slugTaken = function (e) { return /duplicate|unique|23505/i.test(String((e && (e.message || e.code)) || e)); };
+  var slugMissing = function (e) { return /slug/i.test(String((e && e.message) || e)) && /does not exist|schema cache|Could not find/i.test(String((e && e.message) || e)); };
+  /* Donne au lien le nom de l'événement ; si ce nom est déjà pris par un autre événement : gala-de-noel-2, -3… */
+  function regPickSlug(name, fn) {
+    var base = slugify(name), n = 1;
+    function next() {
+      var s = n === 1 ? base : n < 10 ? base + '-' + n : base + '-' + Math.random().toString(36).slice(2, 6);
+      return fn(s).catch(function (e) { if (slugTaken(e) && n < 12) { n++; return next(); } throw e; });
+    }
+    return next();
+  }
   function loadScript(src) {
     return new Promise(function (res, rej) {
       var s = document.createElement('script'); s.src = src; s.async = true;
@@ -4466,7 +4549,29 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     var ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Event Manager Pro//FR', 'BEGIN:VEVENT', 'UID:' + uid('reg') + '@event-manager-pro',
       'DTSTAMP:' + new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+/, ''), 'DTSTART;VALUE=DATE:' + d(s), 'DTEND;VALUE=DATE:' + d(addDays(e || s, 1)),
       'SUMMARY:' + t(name), place ? 'LOCATION:' + t(place) : '', 'END:VEVENT', 'END:VCALENDAR'].filter(Boolean).join('\r\n');
-    return 'data:text/calendar;charset=utf-8,' + encodeURIComponent(ics);
+    return ics;
+  }
+  /* v6.1 : enregistrer un fichier (QR code, agenda, liste Excel). Sur téléphone et dans l'application installée, un simple lien
+     « télécharger » ne fait souvent rien : on ouvre alors le menu « Partager » (« Enregistrer l'image », « Ajouter au calendrier »…),
+     sinon on télécharge le fichier, et dans l'application installée sur iPhone on l'ouvre pour l'enregistrer. */
+  function saveFile(blob, name) {
+    var file = null;
+    try { file = new File([blob], name, { type: blob.type }); } catch (e) { /* ancien navigateur */ }
+    var touch = window.matchMedia && matchMedia('(pointer: coarse)').matches;
+    function dl() {
+      var url = URL.createObjectURL(blob), a = document.createElement('a');
+      a.href = url; a.download = name; a.rel = 'noopener'; a.style.display = 'none';
+      document.body.appendChild(a); a.click();
+      setTimeout(function () { a.remove(); }, 200);
+      if (isIOS && isStandalone()) window.open(url, '_blank');
+      setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
+      toast('Fichier « ' + name + ' » enregistré dans Téléchargements.');
+    }
+    if (file && touch && navigator.canShare && navigator.share) {
+      var ok = false; try { ok = navigator.canShare({ files: [file] }); } catch (e) { /* non */ }
+      if (ok) return navigator.share({ files: [file], title: name }).catch(function (e) { if (!e || e.name !== 'AbortError') dl(); });
+    }
+    dl();
   }
 
   /* ===== Page publique (sans compte) ===== */
@@ -4527,7 +4632,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
         ? '<div class="pub-ok"><b>✅ C\'est noté !</b><p>Votre inscription est confirmée (n° ' + d.number + ', ' + regPeople(d.people) + '). À bientôt !</p></div>'
         : '<div class="pub-wait"><b>⏳ Vous êtes sur la liste d\'attente</b><p>Rang <b>' + d.number + '</b>. Si une place se libère, vous passez automatiquement et l\'organisateur vous prévient.</p></div>';
       h += pubMineBox(PUB.code, d.token, 'Gardez votre lien personnel : il sert à voir votre inscription ou à l\'annuler.');
-      if (i.start) h += '<a class="btn" href="' + regIcs(i.name, i.start, i.end, i.place) + '" download="evenement.ics">📅 Ajouter à mon agenda</a>';
+      if (i.start) h += btn('📅 Ajouter à mon agenda', 'pub-ics', '');
       h += btn('Inscrire une autre personne', 'pub-again', 'btn-ghost');
       return pubShow(h);
     }
@@ -4559,6 +4664,8 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
   }
   function pubStart(code, tok) {
     PUB.code = (code || '').toLowerCase(); PUB.tok = tok || '';
+    // Arrivé par le lien lisible (renvoyé par 404.html) : on remet l'adresse lisible dans la barre.
+    if (!PUB.tok && !/^[0-9a-f]{10}$/.test(PUB.code) && /[?&]inscription=/.test(location.search)) { try { history.replaceState(null, '', appRoot() + PUB.code + '/inscription'); } catch (e) { /* rien */ } }
     document.title = 'Inscription · ' + (B.edition || 'Event Manager Pro');
     pubShow('<p class="muted cl-wait">Chargement…</p>');
     if (!Cloud.configured()) return pubShow('<div class="cl-inv bad">Cette application n\'est pas reliée au serveur : inscription impossible.</div>');
@@ -4607,6 +4714,11 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     }).then(function (r) {
       R.busy = false; if (REG.sid !== sid) return;
       R.link = r[0]; R.list = r[1] || []; R.at = Date.now(); R.err = '';
+      // v6.1 : un lien créé avant la v6.1 reçoit tout seul le nom de l'événement (l'ancien lien reste valable).
+      if (R.link && !R.link.slug && !R.slugTry && curEv()) {
+        R.slugTry = true;
+        regPickSlug(curEv().name, function (s) { return Cloud.regSave({ slug: s }); }).then(function (l) { if (l && REG.sid === sid) { REG.link = l; if (ui.view === 'regs' && $('#modal').hidden) render(); } }, noop);
+      }
       regToParticipants(curEv(), R.list);
       if (['regs', 'dash', 'people'].indexOf(ui.view) >= 0 && $('#modal').hidden) render();
     }, function (e) {
@@ -4662,11 +4774,11 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     var h = vhead('Inscriptions publiques', 'Un lien pour que tout le monde s\'inscrive à l\'événement, <b>sans compte</b>. Mettez-le sur le flyer (QR code) ou envoyez-le sur WhatsApp.',
       R.link ? btn('↻ Actualiser', 'reg-refresh', 'btn-ghost') : '');
     if (!ON.on) return h + '<div class="card">' + empty('Les inscriptions publiques marchent avec un compte en ligne. Connectez-vous dans « Aide & réglages ».') + '</div>';
-    if (R.err === 'sql') return h + '<div class="card"><div class="cl-inv bad">La base de données n\'est pas encore à jour pour les inscriptions : lancez une fois le script <b>SQL v6.0</b> dans Supabase (SQL Editor), puis rechargez la page.</div></div>';
+    if (R.err === 'sql') return h + '<div class="card"><div class="cl-inv bad">La base de données n\'est pas encore à jour pour les inscriptions : lancez une fois le script <b>SQL v6.1</b> dans Supabase (SQL Editor), puis rechargez la page.</div></div>';
     if (!R.at) { regAuto(); if (!R.busy) setTimeout(function () { regLoad(); }, 0); return h + '<div class="card"><p class="muted">Chargement…</p></div>'; }
     if (R.err) h += '<div class="cl-inv bad mb">' + esc(R.err) + '</div>';
     if (!R.link) return h + '<div class="card new-ev-empty"><h2>Pas encore de lien d\'inscription</h2><p class="muted">Créez le lien, puis ouvrez les inscriptions. Les places sont les « Personnes attendues » de l\'événement' + (ev.expected ? ' (' + ev.expected + ')' : '') + ' ; quand c\'est complet, les suivants vont en liste d\'attente.</p><div class="mt">' + btn('Créer le lien d\'inscription', 'reg-create', 'btn-gold btn-lg') + '</div></div>';
-    var L = R.link, link = regLinkOf(L.code), cap = Number(ev.expected) || 0, seats = regSeats('ok');
+    var L = R.link, link = regLinkOf(L), cap = Number(ev.expected) || 0, seats = regSeats('ok');
     var ok = R.list.filter(function (r) { return r.status === 'ok'; }), wait = R.list.filter(function (r) { return r.status === 'wait'; }), gone = R.list.filter(function (r) { return r.status === 'cancelled'; });
     var tell = ok.filter(function (r) { return r.promoted && !r.told; });
     var past = L.deadline && L.deadline < today();
@@ -4693,7 +4805,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     return h;
   }
   function regFind(el) { var id = el.getAttribute('data-id'); return REG.list.filter(function (r) { return r.id === id; })[0]; }
-  function regDo(p, msg) { return p.then(function () { if (msg) toast(msg); REG.at = 0; return regLoad(); }, function (e) { var m = regErr(e); toast(m === 'sql' ? 'Lancez d\'abord le script SQL v6.0 dans Supabase.' : m); render(); }); }
+  function regDo(p, msg) { return p.then(function () { if (msg) toast(msg); REG.at = 0; return regLoad(); }, function (e) { var m = regErr(e); toast(m === 'sql' ? 'Lancez d\'abord le script SQL v6.1 dans Supabase.' : m); render(); }); }
   function regQr(link, ev) {
     openForm('QR code pour le flyer', [{ type: 'note', k: '_n', html: '<div class="reg-qr" id="reg-qr"><p class="muted">Préparation du QR code…</p></div><p class="small muted">Imprimez-le sur le flyer ou l\'affiche : on le scanne avec l\'appareil photo du téléphone, et la page d\'inscription s\'ouvre.</p>' }], {}, function () {}, { saveLabel: 'Fermer' });
     (window.qrcode ? Promise.resolve() : loadScript(QR_LIB)).then(function () {
@@ -4703,7 +4815,8 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
       var g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, size, size); g.fillStyle = '#0A1230';
       for (var r = 0; r < n; r++) for (var k = 0; k < n; k++) if (qr.isDark(r, k)) g.fillRect((k + m) * cell, (r + m) * cell, cell, cell);
       var url = c.toDataURL('image/png'), box = $('#reg-qr');
-      if (box) box.innerHTML = '<img src="' + url + '" alt="QR code du lien d\'inscription"><a class="btn btn-gold" href="' + url + '" download="QR_inscription_' + esc(fileName(ev.name)) + '.png">⬇ Télécharger l\'image</a>';
+      c.toBlob(function (b) { REG.qr = { blob: b, name: 'QR_inscription_' + fileName(ev.name) + '.png' }; });
+      if (box) box.innerHTML = '<img src="' + url + '" alt="QR code du lien d\'inscription">' + btn('⬇ Télécharger l\'image', 'reg-qr-save', 'btn-gold', ' type="button"');
     }, function () { var box = $('#reg-qr'); if (box) box.innerHTML = '<p class="cl-err">QR code indisponible sans internet.</p>'; });
   }
   var fileName = function (s) { return String(s || 'evenement').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\w-]+/g, '_').replace(/^_+|_+$/g, ''); };
@@ -4714,10 +4827,11 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
       return [st[r.status] + (r.promoted && r.status === 'ok' ? ' (sorti de la liste d\'attente)' : ''), r.name, r.people, r.phone, r.email, fmtStamp(r.created_at), r.cancelled_at ? fmtStamp(r.cancelled_at) : ''];
     }));
     var blob = new Blob(['﻿' + rows.map(function (r) { return r.map(q).join(';'); }).join('\r\n')], { type: 'text/csv;charset=utf-8' });
-    var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'Inscriptions_' + fileName(ev.name) + '_' + today() + '.csv';
-    document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    saveFile(blob, 'Inscriptions_' + fileName(ev.name) + '_' + today() + '.csv');
   }
   Object.assign(ACT, {
+    'reg-qr-save': function () { if (REG.qr && REG.qr.blob) saveFile(REG.qr.blob, REG.qr.name); else toast('Le QR code se prépare, réessayez dans une seconde.'); },
+    'pub-ics': function () { var i = PUB.info || {}; if (i.start) saveFile(new Blob([regIcs(i.name, i.start, i.end, i.place)], { type: 'text/calendar' }), 'evenement.ics'); },
     'pub-again': function () { PUB.done = null; PUB.form = true; PUB.err = ''; pubRender(); },
     'pub-retry': function () { PUB.err = ''; pubStart(PUB.code, PUB.tok); },
     'pub-cancel': function (el) {
@@ -4726,7 +4840,10 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
       Cloud.regCancel(PUB.tok).then(function () { lsDel('emp_reg_' + PUB.code); return pubLoad(); }, function (e) { el.disabled = false; toast(regErr(e)); });
     },
     'reg-refresh': function () { REG.at = 0; regLoad(); },
-    'reg-create': function (el) { el.disabled = true; regDo(Cloud.regCreate(), 'Lien créé. Ouvrez les inscriptions quand vous êtes prêt.'); },
+    'reg-create': function (el, ev) {
+      el.disabled = true;
+      regDo(regPickSlug(ev.name, function (s) { return Cloud.regCreate(s); }).catch(function (e) { if (slugMissing(e)) return Cloud.regCreate(); throw e; }), 'Lien créé. Ouvrez les inscriptions quand vous êtes prêt.');
+    },
     'reg-toggle': function (el) {
       var open = !REG.link.open;
       if (open && !curEv().expected && !confirm('Aucun nombre de places (« Personnes attendues ») : les inscriptions seront illimitées. Continuer ?')) return;
@@ -4738,14 +4855,20 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
         { k: 'expected', label: 'Nombre de places', type: 'number', half: true, hint: 'C\'est aussi « Personnes attendues ». Vide ou 0 = illimité.' },
         { k: 'deadline', label: 'Date limite d\'inscription', type: 'date', half: true, hint: 'Vide = jusqu\'à l\'événement.' },
         { k: 'show_count', label: 'Montrer au public le nombre d\'inscrits et de places', type: 'checkbox' },
-        { k: 'note', label: 'Message sur la page d\'inscription', type: 'textarea', rows: 3, ph: 'Ex. : Entrée gratuite. Venez 15 minutes avant le début.' }
-      ], { expected: ev.expected || '', deadline: L.deadline || '', show_count: L.show_count, note: L.note || '' }, function (v) {
+        { k: 'note', label: 'Message sur la page d\'inscription', type: 'textarea', rows: 3, ph: 'Ex. : Entrée gratuite. Venez 15 minutes avant le début.' },
+        { k: 'slug', label: 'Nom dans le lien', ph: slugify(ev.name), hint: 'Le lien sera : ' + appRoot() + (L.slug || slugify(ev.name)) + '/inscription — lettres sans accents, chiffres et tirets.' }
+      ], { expected: ev.expected || '', deadline: L.deadline || '', show_count: L.show_count, note: L.note || '', slug: L.slug || '' }, function (v) {
         var cap = Math.max(0, Math.floor(Number(v.expected) || 0));
         if (cap !== (Number(ev.expected) || 0)) { ev.expected = cap; log(ev, 'a fixé ' + (cap || 'un nombre illimité de') + ' places pour les inscriptions.'); save(); }
-        regDo(Cloud.regSave({ deadline: v.deadline || null, show_count: !!v.show_count, note: String(v.note || '').slice(0, 600) }), 'Réglages enregistrés.');
+        var f = { deadline: v.deadline || null, show_count: !!v.show_count, note: String(v.note || '').slice(0, 600) }, sl = v.slug ? slugify(v.slug) : '';
+        if (sl && sl !== L.slug) f.slug = sl;
+        regDo(Cloud.regSave(f).catch(function (e) {
+          if (f.slug && slugTaken(e)) { delete f.slug; return Cloud.regSave(f).then(function () { toast('Le nom « ' + sl + ' » est déjà pris par un autre événement : le lien n\'a pas changé.'); }); }
+          throw e;
+        }), f.slug ? 'Réglages enregistrés. Nouveau lien : …/' + sl + '/inscription' : 'Réglages enregistrés.');
       });
     },
-    'reg-qr': function (el, ev) { if (REG.link) regQr(regLinkOf(REG.link.code), ev); },
+    'reg-qr': function (el, ev) { if (REG.link) regQr(regLinkOf(REG.link), ev); },
     'reg-csv': function (el, ev) { regCsv(ev); },
     'reg-wa': function (el, ev) {
       var r = regFind(el); if (!r) return;
@@ -4768,7 +4891,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
   /* ----- Démarrage ----- */
   function cloudStart() {
     // v6.0 : page publique d'inscription (sans compte) : on n'ouvre pas l'application.
-    var pm = /[?&]inscription=([A-Za-z0-9]{4,40})/.exec(location.search), pt = /[?&]ma=([0-9a-fA-F-]{36})/.exec(location.search);
+    var pm = /[?&]inscription=([A-Za-z0-9-]{3,60})/.exec(location.search) || /\/([a-z0-9-]{3,60})\/inscription\/?$/i.exec(location.pathname), pt = /[?&]ma=([0-9a-fA-F-]{36})/.exec(location.search);
     if (pm || pt) { pubStart(pm ? pm[1] : '', pt ? pt[1] : ''); return; }
     var m = /[?&]invite=([A-Za-z0-9]+)/.exec(location.search);
     if (m) {

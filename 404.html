@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Event Manager Pro · Pray and Move Generation</title>
+<script>
+/* Event Manager Pro v6.1 : un lien d'inscription lisible (…/gala-de-noel/inscription) ouvre la page d'inscription de l'application.
+   Toute autre adresse inconnue ramène à l'application. */
+(function () {
+  var p = location.pathname, m = /^(.*?\/)([a-z0-9-]{3,60})\/inscription\/?$/i.exec(p);
+  location.replace(m ? m[1] + '?inscription=' + m[2].toLowerCase() + location.hash : p.replace(/^(\/[^\/]+\/).*$/, '$1'));
+})();
+</script>
+</head>
+<body style="font-family:system-ui,sans-serif;text-align:center;padding-top:60px;color:#0A1230">
+<p>Ouverture de la page d'inscription…</p>
+</body>
+</html>
