@@ -922,13 +922,13 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
   window.Cloud = Cloud;
 })();
 </script>
-<script>/* Event Manager Pro v5.8 — sécurité (fichiers ouverts selon leur vrai type, liens https, « non » = plus d'accès), v5.6 : message WhatsApp qui suit les rôles actuels, chaque nouveau rôle est demandé (oui / non), chacun organise ses événements (annuaire, répartition des rôles, réponses), bouton Installer, plusieurs équipes par personne, s'installe comme une application, en ligne (comptes, invitations, synchronisation), réunions, équipes habituelles, missions, OK des chefs (avec réserve), budget par équipe, jour J, bilan.
+<script>/* Event Manager Pro v6.0 — chaque action s'affiche tout de suite (répartition des rôles, personnes, publication), v5.8 — sécurité (fichiers ouverts selon leur vrai type, liens https, « non » = plus d'accès), v5.6 : message WhatsApp qui suit les rôles actuels, chaque nouveau rôle est demandé (oui / non), chacun organise ses événements (annuaire, répartition des rôles, réponses), bouton Installer, plusieurs équipes par personne, s'installe comme une application, en ligne (comptes, invitations, synchronisation), réunions, équipes habituelles, missions, OK des chefs (avec réserve), budget par équipe, jour J, bilan.
    Sans compte, les données restent dans ce navigateur (localStorage) ; avec un compte, elles sont partagées en ligne (Supabase). */
 (function () {
   'use strict';
 
   var B = window.BRAND || {};
-  var APP_VERSION = '5.9';
+  var APP_VERSION = '6.0';
   var KEY = B.storageKey || 'emp_v2';
 
   /* ---------- Outils ---------- */
@@ -3201,7 +3201,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
   /* Les dons sont rangés avec l'équipe Finances : son chef (trésorier) peut les noter. */
   function finCat(ev) { var t = ev.teams.filter(function (x) { return /financ|tr[ée]sor/i.test(x.name); })[0]; return t ? t.catId : null; }
 
-  var ON = { on: false, space: null, me: null, teams: [], tr: {}, synced: {}, orphans: {}, rejected: {}, upQ: [], q: [], status: 'ok', pending: 0, busy: false, again: false, timer: null, subOk: false, mem: null, inv: null, memAt: 0 };
+  var ON = { on: false, space: null, me: null, teams: [], tr: {}, synced: {}, sent: {}, orphans: {}, rejected: {}, upQ: [], q: [], status: 'ok', pending: 0, busy: false, again: false, timer: null, subOk: false, mem: null, inv: null, memAt: 0 };
 
   function decompose(st) {
     var out = {}, org = st.role.kind === 'org';
@@ -3324,7 +3324,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     if (!ON.pending) { setStatus('ok'); flushUploads(); return; }
     ON.busy = true; setStatus('sync');
     Cloud.upsert(up).then(function () { return Cloud.remove(del.map(rkey)); }).then(function () {
-      up.forEach(function (r) { ON.synced[rkey(r)] = { s: sig(r), r: clone(r) }; });
+      up.forEach(function (r) { var k = rkey(r), s = sig(r); ON.synced[k] = { s: s, r: clone(r) }; sentMark(k, s); });
       del.forEach(function (r) { delete ON.synced[rkey(r)]; });
       ON.busy = false; ON.pending = 0; saveCache(); setStatus('ok'); flushUploads();
       if (ON.again) { ON.again = false; schedulePush(50); }
@@ -3352,6 +3352,17 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     }).catch(function () { ON.busy = false; setStatus('offline'); schedulePush(15000); });
   }
 
+  /* v6.0 : on garde la trace de ce que cet appareil vient d'envoyer. Si le serveur nous renvoie plus tard
+     une de nos anciennes versions (l'écho arrive en retard), elle ne doit pas effacer un changement plus récent. */
+  function sentMark(k, s) {
+    var now = Date.now(), a = (ON.sent[k] || []).filter(function (x) { return now - x.t < 60000 && x.s !== s; });
+    a.push({ s: s, t: now }); ON.sent[k] = a;
+  }
+  function staleEcho(k, s) {
+    var now = Date.now(), a = ON.sent[k] || [];
+    if (!ON.synced[k] || ON.synced[k].s === s) return false;
+    return a.some(function (x) { return x.s === s && now - x.t < 60000; });
+  }
   /* ----- Réception des changements des autres ----- */
   function applyRows(list) {
     if (!list.length) return false;
@@ -3361,6 +3372,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
       delete ON.rejected[k];
       if (x.del) { delete ON.synced[k]; delete ON.orphans[k]; if (clean || !cWrite(r.kind, r.cat_id)) delete L[k]; return; }
       var row = { kind: r.kind, id: r.id, event_id: r.event_id || null, cat_id: r.cat_id || null, data: r.data };
+      if (!x.full && staleEcho(k, sig(row))) return;
       ON.synced[k] = { s: sig(row), r: clone(row) };
       if (clean || !cWrite(row.kind, row.cat_id)) L[k] = row;
     });
@@ -3432,7 +3444,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
       if (!ON.on || ON.space.id !== sid) return;
       var S = {}, list = [], had = state.events.length;
       rows.forEach(function (r) { S[rkey(r)] = r; });
-      Object.keys(S).forEach(function (k) { if (!ON.synced[k] || ON.synced[k].s !== sig(S[k])) list.push({ row: S[k] }); });
+      Object.keys(S).forEach(function (k) { if (!ON.synced[k] || ON.synced[k].s !== sig(S[k])) list.push({ row: S[k], full: true }); });
       Object.keys(ON.synced).forEach(function (k) { if (!S[k] && ON.synced[k].r.kind !== 'log') list.push({ del: true, row: ON.synced[k].r }); });
       applyRows(list); saveCache(); ON.lastSync = Date.now();
       if (!had && state.events.length) { ui.view = null; if (!state.eventId) state.eventId = state.events[0].id; }
@@ -3636,7 +3648,11 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     if (ON.me.answer === 'no') return '<div class="card ev-inv in-ev no"><div><b>Vous avez répondu que vous ne pouvez pas</b><p>Vous ne voyez donc plus les missions de l\'équipe.</p></div><div class="m-actions">' + btn('Finalement, j\'accepte', 'ev-yes', 'btn-ok btn-sm', ' data-id="' + ON.space.id + '"') + '</div></div>';
     return '';
   }
-  function answerEvent(sid, a, cat) {
+  function answerEvent(sid, a, cat, btnEl) {
+    // v6.0 : le bouton montre tout de suite que la réponse part (et on ne peut pas l'envoyer deux fois).
+    var box = btnEl && btnEl.parentNode, bs = box ? Array.prototype.slice.call(box.querySelectorAll('[data-act="ev-yes"], [data-act="ev-no"]')) : [];
+    bs.forEach(function (b) { b.disabled = true; }); if (btnEl) { btnEl.setAttribute('data-txt', btnEl.textContent); btnEl.textContent = 'Envoi…'; }
+    var undo = function () { bs.forEach(function (b) { b.disabled = false; }); if (btnEl && btnEl.getAttribute('data-txt')) btnEl.textContent = btnEl.getAttribute('data-txt'); };
     (cat ? Cloud.answerTeam(sid, cat, a) : Cloud.answer(sid, a)).then(function () {
       toast(a === 'yes' ? 'Merci ! L\'organisateur voit que vous acceptez.' : 'C\'est noté : l\'organisateur voit que vous ne pouvez pas.');
       var inEv = ON.on && ON.space && ON.space.id === sid;
@@ -3658,7 +3674,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
         var txt = 'Bonjour ' + (o.name || '') + ', ' + (a === 'yes' ? 'j\'accepte avec joie' : 'désolé(e), je ne pourrai pas') + (tx ? (a === 'yes' ? ' ' : ' prendre ') + tx : '') + ' pour « ' + (e.name || '') + ' »' + (tx ? '' : ' (' + myRoleText(e) + ')') + '. ' + (ON.prof && ON.prof.name ? ON.prof.name : Cloud.displayName());
         openForm('Prévenir l\'organisateur', [{ type: 'note', k: '_n', html: '<p>Votre réponse est déjà visible dans l\'application. Vous pouvez aussi prévenir <b>' + esc(o.name || 'l\'organisateur') + '</b> sur WhatsApp.</p><div class="m-actions">' + btn('Envoyer sur WhatsApp', 'cl-wa', 'btn-gold', ' data-t="' + esc(txt) + '" data-p="' + esc(o.phone || '') + '"') + '</div>' }], {}, function () {}, { saveLabel: 'Fermer' });
       }, noop);
-    }, function (e) { toast(Cloud.frErr(e)); });
+    }, function (e) { undo(); toast(Cloud.frErr(e)); });
   }
   /* Nouvel événement en ligne : un nouvel espace, avec les équipes (et les personnes) reprises d'un événement que l'on organise. */
   function dfltSource() { return { space: null, cats: migrate({ v: 2, events: [], catalog: [], role: { kind: 'org' } }).catalog, label: '' }; }
@@ -3768,24 +3784,90 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     h += '<div class="card mt"><h3>Quelqu\'un n\'est pas dans la liste ?</h3><p class="small muted">La liste montre toutes les personnes inscrites dans l\'application. Si quelqu\'un ne l\'a pas encore, envoyez-lui un lien : il s\'inscrit et arrive directement dans l\'équipe choisie.</p>' + btn('🔗 Envoyer un lien d\'invitation', 'cl-invite', '') + '</div>';
     return h;
   }
-  function teamFill(cat, u, role) {
-    var ev = curEv(), t = teamByCat(ev, cat); if (!t) return;
-    var nm = personName(u), ph = personPhone(u);
-    t.people = (t.people || []).filter(function (p) { return p.name !== nm; });
-    if (role === 'lead') { t.lead = nm; if (ph) t.phone = ph; }
-    else { if (t.lead === nm) t.lead = ''; t.people.push({ id: uid('pm'), name: nm, role: '', phone: ph || '' }); }
-    save();
+  /* v6.0 : l'équipe (chef + membres) est reconstruite à partir de la répartition des rôles.
+     Plusieurs chefs possibles : le premier est « Chef », les autres apparaissent dans les membres avec le rôle « Chef ».
+     Les personnes ajoutées à la main (sans compte) ne sont jamais touchées. */
+  function rosterSync() {
+    var ev = curEv();
+    if (!ON.on || !isOrg() || !ev || !ON.mt || !ON.mem) return false;
+    var reg = {};
+    (ON.mem || []).forEach(function (m) { reg[personName(m.user_id)] = 1; });
+    (ON.dir || []).forEach(function (d) { if (d.name) reg[d.name] = 1; });
+    var changed = false;
+    ev.teams.forEach(function (t) {
+      if (!t.catId) return;
+      var rows = ON.mt.filter(function (x) { return x.cat_id === t.catId; });
+      var leads = rows.filter(function (x) { return x.role === 'lead'; }).map(function (x) { return x.user_id; });
+      var mems = rows.filter(function (x) { return x.role !== 'lead'; }).map(function (x) { return x.user_id; });
+      var before = stable([t.lead || '', t.phone || '', t.people || []]);
+      var leadNames = leads.map(personName);
+      if (leadNames.length && leadNames.indexOf(t.lead) < 0) { t.lead = leadNames[0]; t.phone = personPhone(leads[0]) || ''; }
+      else if (!leadNames.length && t.lead && reg[t.lead]) { t.lead = ''; t.phone = ''; }
+      var want = [];
+      leads.forEach(function (u) { if (personName(u) !== t.lead) want.push([u, 'Chef']); });
+      mems.forEach(function (u) { want.push([u, '']); });
+      var wantNames = want.map(function (w) { return personName(w[0]); });
+      var people = (t.people || []).filter(function (pp) { return !reg[pp.name] || (wantNames.indexOf(pp.name) >= 0 && pp.name !== t.lead); });
+      want.forEach(function (w) {
+        var nm = personName(w[0]), cur = people.filter(function (pp) { return pp.name === nm; })[0];
+        if (!cur) people.push({ id: uid('pm'), name: nm, role: w[1], phone: personPhone(w[0]) || '' });
+        else if (w[1] === 'Chef' && cur.role !== 'Chef') cur.role = 'Chef';
+        else if (!w[1] && cur.role === 'Chef') cur.role = '';
+      });
+      t.people = people;
+      if (stable([t.lead || '', t.phone || '', t.people]) !== before) changed = true;
+    });
+    if (changed) save();
+    return changed;
   }
-  function teamUnfill(cat, u) {
-    var ev = curEv(), t = teamByCat(ev, cat); if (!t) return;
-    var nm = personName(u);
-    if (t.lead === nm) { t.lead = ''; t.phone = ''; }
-    t.people = (t.people || []).filter(function (p) { return p.name !== nm; });
-    save();
+  /* v6.0 : les changements de rôles s'affichent tout de suite sur l'écran, puis partent au serveur un par un, dans l'ordre.
+     « Publier les rôles » attend que tout soit bien enregistré. En cas d'erreur, on recharge ce qui est vraiment enregistré. */
+  function rolesQueue(job, msg) {
+    ON.rqN = (ON.rqN || 0) + 1;
+    var p = (ON.rq || Promise.resolve()).then(job);
+    ON.rq = p.then(noop, function (e) { toast(Cloud.frErr(e)); }).then(function () {
+      ON.rqN--;
+      if (!ON.rqN) { ON.memAt = 0; loadPeople(true); }
+    });
+    if (msg) toast(msg);
+    peopleRedraw(true);
+    return p;
   }
-  function rolesDone(p, msg) {
-    p.then(function () { ON.memAt = 0; loadPeople(true); if (msg) toast(msg); }, function (e) { toast(Cloud.frErr(e)); ON.memAt = 0; loadPeople(true); });
+  /* Redessine tout de suite les listes de personnes et de rôles visibles (le choix fait dans une liste est terminé). */
+  function peopleRedraw(force) {
+    var a = document.activeElement;
+    if (force && a && a.matches && a.matches('select') && a.closest('#cl-roles, #cl-notify, #cl-people')) a.blur();
+    if (!force && !safeNow()) { ON.peopleDirty = true; return; }
+    ON.peopleDirty = false;
+    var ev = curEv(), el = $('#cl-people'), r = $('#cl-roles'), n = $('#cl-notify');
+    if (el) el.innerHTML = peopleHtml();
+    if (r && ev) r.innerHTML = rolesHtml(ev);
+    if (n && ev) n.innerHTML = notifyHtml(ev);
   }
+  var mtRow = function (u, c) { return (ON.mt || []).filter(function (x) { return x.user_id === u && x.cat_id === c; })[0]; };
+  var memRow = function (u) { return (ON.mem || []).filter(function (x) { return x.user_id === u; })[0]; };
+  function mtPut(u, c, role, ask) {
+    if (!ON.mt) ON.mt = [];
+    var x = mtRow(u, c);
+    if (!x) { x = { space_id: ON.space.id, user_id: u, cat_id: c, status: ask ? 'draft' : 'active', answer: null }; ON.mt.push(x); }
+    x.role = role;
+    if (ask) { x.status = 'draft'; x.answer = null; x.answered_at = null; }
+  }
+  function mtDel(u, c) { if (ON.mt) ON.mt = ON.mt.filter(function (x) { return !(x.user_id === u && x.cat_id === c); }); }
+  function memPut(u, role) {
+    if (!ON.mem) ON.mem = [];
+    var m = memRow(u);
+    if (!m) { m = { user_id: u, role: role, cat_id: null, display_name: personName(u), status: 'draft', answer: null }; ON.mem.push(m); }
+    return m;
+  }
+  /* Même calcul que syncMember, mais sur l'écran : rôle principal et première équipe. */
+  function memFix(u) {
+    var m = memRow(u); if (!m || m.role === 'org') return;
+    var ts = (ON.mt || []).filter(function (t) { return t.user_id === u; });
+    m.role = ts.some(function (t) { return t.role === 'lead'; }) ? 'lead' : 'member';
+    m.cat_id = ts.some(function (t) { return t.cat_id === m.cat_id; }) ? m.cat_id : (ts[0] ? ts[0].cat_id : null);
+  }
+
   /* Prévenir l'équipe : un message WhatsApp prêt pour chaque personne choisie, et un pour le groupe. */
   /* Le message suit toujours les rôles actuels : un nouveau rôle en attente est mis en avant, avec un rappel des rôles déjà acceptés. */
   function notifyParts(ev, u) {
@@ -3900,7 +3982,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     Cloud.unsubscribe();
     ON.on = true; ON.space = (cache && cache.space) || { id: id, name: '' }; ON.me = cache && cache.me;
     ON.synced = (cache && cache.synced) || {}; ON.orphans = (cache && cache.orphans) || {}; ON.upQ = (cache && cache.upQ) || [];
-    ON.rejected = {}; ON.q = []; ON.pending = 0; ON.subOk = false; ON.mem = null; ON.inv = null; ON.mt = null; ON.busy = false; ON.loading = false; ON.teams = []; ON.tr = {};
+    ON.rejected = {}; ON.sent = {}; ON.rq = null; ON.rqN = 0; ON.pubBusy = false; ON.q = []; ON.pending = 0; ON.subOk = false; ON.mem = null; ON.inv = null; ON.mt = null; ON.busy = false; ON.loading = false; ON.teams = []; ON.tr = {};
     state = { v: 2, sv: 3, eventId: src.eventId || null, role: ON.me ? { kind: ON.me.role, catId: ON.me.cat_id || null } : { kind: 'org' }, orgName: ON.me ? ON.me.display_name : Cloud.displayName(), orgPin: '', catalog: src.catalog || [], events: src.events || [] };
     if (ON.me) { if (!ON.me.teams) ON.me.teams = ON.me.role !== 'org' && ON.me.cat_id ? [{ cat_id: ON.me.cat_id, role: ON.me.role }] : []; setTeams(); }
     if (seed) state.eventId = seed.eventId;
@@ -3983,13 +4065,14 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
   function loadPeople(force) {
     if (!ON.on || !isOrg() || (!force && Date.now() - ON.memAt < 5000)) return;
     ON.memAt = Date.now();
+    var seq = ON.loadSeq = (ON.loadSeq || 0) + 1, sid = ON.space && ON.space.id;
     Promise.all([Cloud.members(), Cloud.invites(), Cloud.teamMembers().catch(function () { return null; }), Cloud.directory(B.id).catch(function () { return []; })]).then(function (a) {
+      // v6.0 : une réponse arrivée trop tard (une plus récente a été demandée, ou des changements partent encore) ne remplace rien.
+      if (seq !== ON.loadSeq || ON.rqN || !ON.on || !ON.space || ON.space.id !== sid) return;
       ON.mem = a[0]; ON.inv = a[1]; ON.mt = a[2]; ON.dir = a[3];
-      var el = $('#cl-people'); if (el) el.innerHTML = peopleHtml();
-      var ev = curEv(), r = $('#cl-roles'), n = $('#cl-notify');
-      if (r && ev && safeNow()) r.innerHTML = rolesHtml(ev);
-      if (n && ev && safeNow()) n.innerHTML = notifyHtml(ev);
-    }).catch(function (e) { var el = $('#cl-people'); if (el) el.innerHTML = '<p class="cl-err">' + esc(Cloud.frErr(e)) + '</p>'; });
+      rosterSync();
+      peopleRedraw(false);
+    }).catch(function (e) { var el = $('#cl-people'); if (seq === ON.loadSeq && el) el.innerHTML = '<p class="cl-err">' + esc(Cloud.frErr(e)) + '</p>'; });
   }
   function peopleHtml() {
     if (!ON.mem) return '<p class="muted small">Chargement…</p>';
@@ -4030,7 +4113,6 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
   /* Garde la ligne « membre » cohérente avec ses équipes (rôle principal et première équipe). */
   function syncMember(u) {
     return Cloud.teamMembers().then(function (rows) {
-      ON.mt = rows;
       var m = (ON.mem || []).filter(function (x) { return x.user_id === u; })[0];
       if (!m || m.role === 'org') return;
       var ts = rows.filter(function (t) { return t.user_id === u; });
@@ -4038,9 +4120,7 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
       if (f.role !== m.role || f.cat_id !== m.cat_id) return Cloud.setMember(u, f);
     });
   }
-  function teamChange(p, msg) {
-    p.then(function () { loadPeople(true); if (msg) toast(msg); }, function (e) { toast(Cloud.frErr(e)); loadPeople(true); });
-  }
+
   function cloudCards() {
     var u = Cloud.user() || {};
     var h = '<div class="card"><h2>Compte et espace en ligne</h2><p>Connecté(e) : <b>' + esc(Cloud.displayName()) + '</b> · ' + esc(u.email || '') + '</p>' +
@@ -4080,20 +4160,24 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     },
     'cl-invite': function (el) { formInvite(el.getAttribute('data-cat'), el.getAttribute('data-role'), el.getAttribute('data-lead')); },
     'cl-ishare': function (el) { showInvite(el.getAttribute('data-c'), el.getAttribute('data-r'), el.getAttribute('data-cat'), el.getAttribute('data-lb')); },
-    'cl-idel': function (el) { if (!confirm('Supprimer ce lien ? Les personnes déjà inscrites gardent leur accès.')) return; Cloud.deleteInvite(el.getAttribute('data-c')).then(function () { loadPeople(true); }, function (e) { toast(Cloud.frErr(e)); }); },
+    'cl-idel': function (el) { if (!confirm('Supprimer ce lien ? Les personnes déjà inscrites gardent leur accès.')) return; var code = el.getAttribute('data-c'); ON.inv = (ON.inv || []).filter(function (i) { return i.code !== code; }); rolesQueue(function () { return Cloud.deleteInvite(code); }, 'Lien supprimé.'); },
     'cl-tdel': function (el) {
       var u = el.getAttribute('data-u');
       if (!confirm('Retirer ' + el.getAttribute('data-n') + ' de l\'équipe « ' + el.getAttribute('data-cn') + ' » ? Ses autres équipes restent.')) return;
-      teamChange(Cloud.removeTeam(u, el.getAttribute('data-c')).then(function () { return syncMember(u); }), 'Retiré(e) de l\'équipe.');
+      var c = el.getAttribute('data-c');
+      mtDel(u, c); memFix(u); rosterSync();
+      rolesQueue(function () { return Cloud.removeTeam(u, c).then(function () { return syncMember(u); }); }, 'Retiré(e) de l\'équipe.');
     },
     'cl-mdel': function (el) {
       if (!confirm('Retirer ' + el.getAttribute('data-n') + ' de l\'espace ? Cette personne ne verra plus rien.')) return;
-      Cloud.removeMember(el.getAttribute('data-u')).then(function () { loadPeople(true); toast('Personne retirée.'); }, function (e) { toast(Cloud.frErr(e)); });
+      var u = el.getAttribute('data-u');
+      ON.mem = (ON.mem || []).filter(function (x) { return x.user_id !== u; }); if (ON.mt) ON.mt = ON.mt.filter(function (x) { return x.user_id !== u; }); rosterSync();
+      rolesQueue(function () { return Cloud.removeMember(u); }, 'Personne retirée.');
     },
     'cl-wa': function (el) { wa(el.getAttribute('data-t'), el.getAttribute('data-p')); },
     'cl-import': function () { importLocal(); },
-    'ev-yes': function (el) { answerEvent(el.getAttribute('data-id'), 'yes', el.getAttribute('data-c')); },
-    'ev-no': function (el) { var c = el.getAttribute('data-c'); if (confirm(c ? 'Vous ne pouvez pas prendre ce rôle ? L\'organisateur sera prévenu.' : 'Vous ne pouvez pas servir pour cet événement ? L\'organisateur sera prévenu.')) answerEvent(el.getAttribute('data-id'), 'no', c); },
+    'ev-yes': function (el) { answerEvent(el.getAttribute('data-id'), 'yes', el.getAttribute('data-c'), el); },
+    'ev-no': function (el) { var c = el.getAttribute('data-c'); if (confirm(c ? 'Vous ne pouvez pas prendre ce rôle ? L\'organisateur sera prévenu.' : 'Vous ne pouvez pas servir pour cet événement ? L\'organisateur sera prévenu.')) answerEvent(el.getAttribute('data-id'), 'no', c, el); },
     'ev-seen': function () { var mx = (ON.ans || []).concat(ON.tans || []).reduce(function (m, a) { return a.answered_at && a.answered_at > m ? a.answered_at : m; }, lsGet(KEY + '_ansSeen') || ''); lsSet(KEY + '_ansSeen', mx); var el = $('#cl-list') || $('#ev-list'); if (el) el.innerHTML = eventsListHtml(ON.list || []); },
     'prof-save': function () {
       var v = ($('#prof-phone') || {}).value || '';
@@ -4102,14 +4186,23 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     },
     'roles-del': function (el) {
       var u = el.getAttribute('data-u'), c = el.getAttribute('data-c'), m = (ON.mem || []).filter(function (x) { return x.user_id === u; })[0];
-      var left = (ON.mt || []).filter(function (x) { return x.user_id === u && x.cat_id !== c; }).length;
-      teamUnfill(c, u);
-      rolesDone(Cloud.removeTeam(u, c).then(function () { return !left && m && m.role !== 'org' ? Cloud.removeMember(u) : syncMember(u); }), left || (m && m.role === 'org') ? 'Retiré(e) de l\'équipe.' : 'Retiré(e) de l\'événement.');
+      var left = (ON.mt || []).filter(function (x) { return x.user_id === u && x.cat_id !== c; }).length, gone = !left && m && m.role !== 'org';
+      mtDel(u, c);
+      if (gone) ON.mem = ON.mem.filter(function (x) { return x.user_id !== u; }); else memFix(u);
+      rosterSync();
+      rolesQueue(function () { return Cloud.removeTeam(u, c).then(function () { return gone ? Cloud.removeMember(u) : syncMember(u); }); }, gone ? 'Retiré(e) de l\'événement.' : 'Retiré(e) de l\'équipe.');
     },
     'roles-pub': function (el) {
-      el.disabled = true;
+      if (ON.pubBusy) return;
+      ON.pubBusy = true;
+      document.querySelectorAll('[data-act="roles-pub"]').forEach(function (b) { b.disabled = true; b.textContent = 'Publication…'; });
       var nr = (ON.mt || []).filter(function (x) { return x.status === 'draft'; }).length;
-      Cloud.publish().then(function (n) { toast((n ? n + ' personne(s) voient maintenant l\'événement. ' : '') + (nr ? 'Les nouveaux rôles sont envoyés : chacun doit les accepter. ' : '') + 'Prévenez-les sur WhatsApp.'); ON.memAt = 0; ON.list = null; go('notify'); }, function (e) { el.disabled = false; toast(Cloud.frErr(e)); });
+      var fail = function (e) { ON.pubBusy = false; document.querySelectorAll('[data-act="roles-pub"]').forEach(function (b) { b.disabled = false; b.textContent = 'Publier les rôles'; }); toast(Cloud.frErr(e)); };
+      // v6.0 : on attend que les derniers choix (chef, membre…) soient bien enregistrés avant de publier.
+      (ON.rq || Promise.resolve()).then(function () { return Cloud.publish(); }).then(function (n) {
+        ON.pubBusy = false;
+        (ON.mem || []).forEach(function (m) { if (m.status === 'draft') m.status = 'active'; });
+        (ON.mt || []).forEach(function (x) { if (x.status === 'draft') x.status = 'active'; }); toast((n ? n + ' personne(s) voient maintenant l\'événement. ' : '') + (nr ? 'Les nouveaux rôles sont envoyés : chacun doit les accepter. ' : '') + 'Prévenez-les sur WhatsApp.'); ON.memAt = 0; ON.list = null; go('notify'); }, fail);
     },
     'cl-copy': function (el) {
       var l = el.getAttribute('data-l');
@@ -4121,20 +4214,22 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
       var u = el.value, c = el.getAttribute('data-c'), t = teamByCat(curEv(), c);
       if (!u) return 'norender';
       var known = (ON.mem || []).some(function (m) { return m.user_id === u; });
-      teamFill(c, u, 'member');
-      rolesDone((known ? Promise.resolve() : Cloud.addPerson(u, personName(u), 'member')).then(function () { return Cloud.setTeam(u, c, 'member', t ? t.name : '', true); }).then(function () { return syncMember(u); }), personName(u) + ' ajouté(e) à « ' + (t ? t.name : '') + ' » comme membre.');
+      // v6.0 : la personne apparaît tout de suite, avec le choix Chef / Membre.
+      memPut(u, 'member'); mtPut(u, c, 'member', true); memFix(u); rosterSync();
+      rolesQueue(function () { return (known ? Promise.resolve() : Cloud.addPerson(u, personName(u), 'member')).then(function () { return Cloud.setTeam(u, c, 'member', t ? t.name : '', true); }).then(function () { return syncMember(u); }); }, personName(u) + ' ajouté(e) à « ' + (t ? t.name : '') + ' » comme membre. Choisissez « Chef » si besoin.');
       return 'norender';
     },
     'roles-role': function (el) {
       var u = el.getAttribute('data-u'), c = el.getAttribute('data-c'), r = el.value, t = teamByCat(curEv(), c);
-      teamFill(c, u, r);
-      rolesDone(Cloud.setTeam(u, c, r, t ? t.name : '', true).then(function () { return syncMember(u); }), personName(u) + ' : ' + (r === 'lead' ? 'chef' : 'membre') + ' de « ' + (t ? t.name : '') + ' » (en brouillon : publiez, puis la personne confirme).');
+      mtPut(u, c, r, true); memFix(u); rosterSync();
+      rolesQueue(function () { return Cloud.setTeam(u, c, r, t ? t.name : '', true).then(function () { return syncMember(u); }); }, personName(u) + ' : ' + (r === 'lead' ? 'chef' : 'membre') + ' de « ' + (t ? t.name : '') + ' » (en brouillon : publiez, puis la personne confirme).');
       return 'norender';
     },
     'roles-org': function (el) {
       var u = el.value; if (!u) return 'norender';
       var known = (ON.mem || []).some(function (m) { return m.user_id === u; });
-      rolesDone((known ? Cloud.setMember(u, { role: 'org' }) : Cloud.addPerson(u, personName(u), 'org')), personName(u) + ' sera co-organisateur.');
+      memPut(u, 'org').role = 'org';
+      rolesQueue(function () { return known ? Cloud.setMember(u, { role: 'org' }) : Cloud.addPerson(u, personName(u), 'org'); }, personName(u) + ' sera co-organisateur.');
       return 'norender';
     },
     'cl-phone': function (el) {
@@ -4150,19 +4245,22 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     },
     'cl-morg': function (el) {
       var u = el.getAttribute('data-u'), m = (ON.mem || []).filter(function (x) { return x.user_id === u; })[0], ts = m ? memberTeams(m) : [];
-      if (el.value === 'org') teamChange(Cloud.setMember(u, { role: 'org' }), 'Cette personne est maintenant organisateur : elle voit et modifie tout.');
-      else teamChange(Cloud.setMember(u, { role: ts.some(function (t) { return t.role === 'lead'; }) ? 'lead' : 'member', cat_id: ts[0] ? ts[0].cat_id : null }), ts.length ? 'Cette personne n\'est plus organisateur : elle garde ses équipes.' : 'Ajoutez-lui maintenant une équipe.');
+      var f = el.value === 'org' ? { role: 'org' } : { role: ts.some(function (t) { return t.role === 'lead'; }) ? 'lead' : 'member', cat_id: ts[0] ? ts[0].cat_id : null };
+      if (m) Object.assign(m, f);
+      rolesQueue(function () { return Cloud.setMember(u, f); }, el.value === 'org' ? 'Cette personne est maintenant organisateur : elle voit et modifie tout.' : ts.length ? 'Cette personne n\'est plus organisateur : elle garde ses équipes.' : 'Ajoutez-lui maintenant une équipe.');
       return 'norender';
     },
     'cl-trole': function (el) {
       var u = el.getAttribute('data-u'), c = el.getAttribute('data-c'), r = el.value, cat = catOf(c);
-      teamChange(Cloud.setTeam(u, c, r).then(function () { return syncMember(u); }), (r === 'lead' ? 'Chef' : 'Membre') + ' de « ' + (cat ? cat.name : '') + ' ».');
+      mtPut(u, c, r, false); memFix(u); rosterSync();
+      rolesQueue(function () { return Cloud.setTeam(u, c, r).then(function () { return syncMember(u); }); }, (r === 'lead' ? 'Chef' : 'Membre') + ' de « ' + (cat ? cat.name : '') + ' ».');
       return 'norender';
     },
     'cl-tadd': function (el) {
       var u = el.getAttribute('data-u'), c = el.value, cat = catOf(c);
       if (!c) return 'norender';
-      teamChange(Cloud.setTeam(u, c, 'member').then(function () { return syncMember(u); }), 'Équipe « ' + (cat ? cat.name : '') + ' » ajoutée comme membre. Choisissez « Chef » si besoin.');
+      mtPut(u, c, 'member', false); memFix(u); rosterSync();
+      rolesQueue(function () { return Cloud.setTeam(u, c, 'member').then(function () { return syncMember(u); }); }, 'Équipe « ' + (cat ? cat.name : '') + ' » ajoutée comme membre. Choisissez « Chef » si besoin.');
       return 'norender';
     }
   });
@@ -4281,8 +4379,21 @@ window.EMP_CLOUD = { url: 'https://shoxardpvorqprzqdfgg.supabase.co', key: 'eyJh
     if (!k || !CHG[k]) return;
     var r = CHG[k](el, curEv());
     save(); if (r !== 'norender') render();
+    // v6.0 : une liste déroulante qui garde le focus bloquait les mises à jour (il fallait cliquer ailleurs).
+    if (el.tagName === 'SELECT' && document.activeElement === el) el.blur();
+    if (ON.q.length) flushQ();
+  });
+  // v6.0 : dès qu'on quitte un champ, ce qui attendait (changements reçus, listes de personnes) s'affiche tout de suite.
+  document.addEventListener('focusout', function () {
+    setTimeout(function () {
+      if (!safeNow()) return;
+      if (ON.q.length) { clearTimeout(ON.qt); flushQ(); }
+      if (ON.peopleDirty) peopleRedraw(false);
+    }, 0);
   });
   document.addEventListener('input', function (e) {
+    var ck = e.target.getAttribute && e.target.getAttribute('data-chg');
+    if (ck === 'debrief' || ck === 'org-name') { CHG[ck](e.target, curEv()); clearTimeout(ui.typeT); ui.typeT = setTimeout(save, 600); return; }
     if (e.target.getAttribute('data-input') === 'people-filter') {
       var q = e.target.value.trim().toLowerCase();
       document.querySelectorAll('#people-tbl tbody tr').forEach(function (tr) { tr.style.display = !q || tr.getAttribute('data-name').indexOf(q) >= 0 ? '' : 'none'; });
