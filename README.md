@@ -1,3 +1,5 @@
-# Event Manager Pro
+# Event Manager Pro · Pray and Move a déménagé
 
-Application en ligne : https://cnanmenibondja-spec.github.io/event-manager-pro-pamg/
+Nouvelle adresse : https://prayandmove.github.io/event-manager-pro-pamg/
+
+Les anciens liens (inscriptions, invitations, QR codes) sont redirigés automatiquement.
